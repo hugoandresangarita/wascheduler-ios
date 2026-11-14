@@ -1,24 +1,133 @@
 import SwiftUI
 import WebKit
 import UserNotifications
+import UIKit
+
+class WebViewBridge {
+    static let shared = WebViewBridge()
+    weak var webView: WKWebView?
+    private var pendingDoneIds: Set<String> = []
+    private var pendingPostponeIds: Set<String> = []
+    private var pendingSkipIds: Set<String> = []
+
+    func markMessageDone(messageId: String) {
+        guard !messageId.isEmpty else { return }
+        DispatchQueue.main.async {
+            if let wv = self.webView {
+                let safeId = messageId.replacingOccurrences(of: "'", with: "\\'")
+                wv.evaluateJavaScript("if (window.markAsSentFromNative) { window.markAsSentFromNative('\(safeId)'); }") { _, error in
+                    if error != nil { self.pendingDoneIds.insert(messageId) }
+                }
+            } else {
+                self.pendingDoneIds.insert(messageId)
+            }
+        }
+    }
+
+    func postponeMessageOneDay(messageId: String) {
+        guard !messageId.isEmpty else { return }
+        DispatchQueue.main.async {
+            if let wv = self.webView {
+                let safeId = messageId.replacingOccurrences(of: "'", with: "\\'")
+                wv.evaluateJavaScript("if (window.postponeOneDayFromNative) { window.postponeOneDayFromNative('\(safeId)'); }") { _, error in
+                    if error != nil { self.pendingPostponeIds.insert(messageId) }
+                }
+            } else {
+                self.pendingPostponeIds.insert(messageId)
+            }
+        }
+    }
+
+    func skipMessage(messageId: String) {
+        guard !messageId.isEmpty else { return }
+        DispatchQueue.main.async {
+            if let wv = self.webView {
+                let safeId = messageId.replacingOccurrences(of: "'", with: "\\'")
+                wv.evaluateJavaScript("if (window.skipMessageFromNative) { window.skipMessageFromNative('\(safeId)'); }") { _, error in
+                    if error != nil { self.pendingSkipIds.insert(messageId) }
+                }
+            } else {
+                self.pendingSkipIds.insert(messageId)
+            }
+        }
+    }
+
+    func flushPendingActions() {
+        guard let wv = self.webView else { return }
+
+        if !pendingDoneIds.isEmpty {
+            let ids = Array(pendingDoneIds)
+            pendingDoneIds.removeAll()
+            for id in ids {
+                let safeId = id.replacingOccurrences(of: "'", with: "\\'")
+                wv.evaluateJavaScript("if (window.markAsSentFromNative) { window.markAsSentFromNative('\(safeId)'); }", completionHandler: nil)
+            }
+        }
+
+        if !pendingPostponeIds.isEmpty {
+            let ids = Array(pendingPostponeIds)
+            pendingPostponeIds.removeAll()
+            for id in ids {
+                let safeId = id.replacingOccurrences(of: "'", with: "\\'")
+                wv.evaluateJavaScript("if (window.postponeOneDayFromNative) { window.postponeOneDayFromNative('\(safeId)'); }", completionHandler: nil)
+            }
+        }
+
+        if !pendingSkipIds.isEmpty {
+            let ids = Array(pendingSkipIds)
+            pendingSkipIds.removeAll()
+            for id in ids {
+                let safeId = id.replacingOccurrences(of: "'", with: "\\'")
+                wv.evaluateJavaScript("if (window.skipMessageFromNative) { window.skipMessageFromNative('\(safeId)'); }", completionHandler: nil)
+            }
+        }
+    }
+}
 
 class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = AppNotificationDelegate()
 
-    // Mostrar notificaciones incluso con la app abierta en primer plano
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .sound, .badge])
     }
 
-    // Manejar toque en la notificación:
-    // - Si actionType == "open_app": abre WaScheduler directamente en Pendientes (para evitar envíos duplicados).
-    // - Si actionType == "open_wa": abre WhatsApp Normal / Business (o pregunta si ambos están activos).
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
-        let actionType = (userInfo["actionType"] as? String) ?? "open_wa"
+        let messageId = (userInfo["messageId"] as? String) ?? ""
 
+        func cancelNotificationsForMessage(_ id: String) {
+            guard !id.isEmpty else { return }
+            center.getPendingNotificationRequests { requests in
+                let toCancel = requests.map { $0.identifier }.filter {
+                    $0 == "\(id)_main" || $0.hasPrefix("\(id)_rem_")
+                }
+                center.removePendingNotificationRequests(withIdentifiers: toCancel)
+            }
+        }
+
+        if response.actionIdentifier == "MARK_DONE_ACTION" {
+            cancelNotificationsForMessage(messageId)
+            WebViewBridge.shared.markMessageDone(messageId: messageId)
+            completionHandler()
+            return
+        }
+
+        if response.actionIdentifier == "POSTPONE_1D_ACTION" {
+            cancelNotificationsForMessage(messageId)
+            WebViewBridge.shared.postponeMessageOneDay(messageId: messageId)
+            completionHandler()
+            return
+        }
+
+        if response.actionIdentifier == "SKIP_MSG_ACTION" {
+            cancelNotificationsForMessage(messageId)
+            WebViewBridge.shared.skipMessage(messageId: messageId)
+            completionHandler()
+            return
+        }
+
+        let actionType = (userInfo["actionType"] as? String) ?? "open_wa"
         if actionType == "open_app" {
-            // Al abrir la app por defecto en iOS, se muestra la vista Pendientes automáticamente
             completionHandler()
             return
         }
@@ -75,9 +184,24 @@ struct WaSchedulerApp: App {
             title: "Abrir WhatsApp",
             options: [.foreground]
         )
+        let markDoneAction = UNNotificationAction(
+            identifier: "MARK_DONE_ACTION",
+            title: "✓ Marcar como Listo",
+            options: []
+        )
+        let postponeAction = UNNotificationAction(
+            identifier: "POSTPONE_1D_ACTION",
+            title: "📅 Posponer 1 día",
+            options: []
+        )
+        let skipAction = UNNotificationAction(
+            identifier: "SKIP_MSG_ACTION",
+            title: "🚫 Omitir mensaje",
+            options: [.destructive]
+        )
         let waCategory = UNNotificationCategory(
             identifier: "WA_MESSAGE_CATEGORY",
-            actions: [openAction],
+            actions: [openAction, markDoneAction, postponeAction, skipAction],
             intentIdentifiers: [],
             options: []
         )
@@ -89,7 +213,7 @@ struct WaSchedulerApp: App {
         )
         let reminderCategory = UNNotificationCategory(
             identifier: "WA_REMINDER_CATEGORY",
-            actions: [reviewAction],
+            actions: [markDoneAction, postponeAction, skipAction, reviewAction],
             intentIdentifiers: [],
             options: []
         )
@@ -124,6 +248,9 @@ struct ContentView: UIViewRepresentable {
         config.userContentController.add(context.coordinator, name: "openExternal")
         config.userContentController.add(context.coordinator, name: "syncAllNotifications")
         config.userContentController.add(context.coordinator, name: "testNotification")
+        config.userContentController.add(context.coordinator, name: "webAppReady")
+        config.userContentController.add(context.coordinator, name: "updateAppBadge")
+        config.userContentController.add(context.coordinator, name: "triggerHaptic")
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -131,6 +258,8 @@ struct ContentView: UIViewRepresentable {
         webView.scrollView.bounces = false
         webView.isOpaque = false
         webView.backgroundColor = UIColor(red: 0.953, green: 0.957, blue: 0.965, alpha: 1.0)
+
+        WebViewBridge.shared.webView = webView
 
         if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html") {
             webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
@@ -143,6 +272,36 @@ struct ContentView: UIViewRepresentable {
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "webAppReady" {
+                WebViewBridge.shared.flushPendingActions()
+                return
+            }
+
+            if message.name == "updateAppBadge", let count = message.body as? Int {
+                DispatchQueue.main.async {
+                    if #available(iOS 16.0, *) {
+                        UNUserNotificationCenter.current().setBadgeCount(max(0, count), withCompletionHandler: nil)
+                    } else {
+                        UIApplication.shared.applicationIconBadgeNumber = max(0, count)
+                    }
+                }
+                return
+            }
+
+            if message.name == "triggerHaptic" {
+                let style = (message.body as? String) ?? "light"
+                DispatchQueue.main.async {
+                    if style == "success" {
+                        let generator = UINotificationFeedbackGenerator()
+                        generator.notificationOccurred(.success)
+                    } else {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                    }
+                }
+                return
+            }
+
             if message.name == "openExternal", let urlString = message.body as? String, let url = URL(string: urlString) {
                 UIApplication.shared.open(url, options: [:], completionHandler: nil)
                 return
@@ -152,13 +311,13 @@ struct ContentView: UIViewRepresentable {
                 let mode = (message.body as? String) ?? "whatsapp"
                 let center = UNUserNotificationCenter.current()
 
-                // 1. Notificación inicial en 5s (abre WhatsApp)
                 let content1 = UNMutableNotificationContent()
                 content1.title = "🔔 Prueba 1: Envío Programado"
-                content1.body = "Toca para abrir WhatsApp con el mensaje listo."
+                content1.body = "Mantén presionada esta notificación para ver las 4 acciones: Abrir WhatsApp, ✓ Listo, 📅 Posponer 1 día y 🚫 Omitir."
                 content1.sound = .default
                 content1.categoryIdentifier = "WA_MESSAGE_CATEGORY"
                 content1.userInfo = [
+                    "messageId": "test_demo_id",
                     "actionType": "open_wa",
                     "waMode": mode,
                     "waQuery": "text=Hola%2C%20esta%20es%20una%20prueba%20desde%20WaScheduler"
@@ -166,13 +325,13 @@ struct ContentView: UIViewRepresentable {
                 let trigger1 = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
                 center.add(UNNotificationRequest(identifier: "test_notif_1_\(UUID().uuidString)", content: content1, trigger: trigger1))
 
-                // 2. Recordatorio de seguimiento en 15s (abre WaScheduler para evitar duplicados)
                 let content2 = UNMutableNotificationContent()
                 content2.title = "⚠️ Prueba 2: Tienes un mensaje sin enviar"
-                content2.body = "Toca para abrir WaScheduler y confirmar si ya lo enviaste."
+                content2.body = "Mantén presionado para Marcar Listo, Posponer 1 día u Omitir."
                 content2.sound = .default
                 content2.categoryIdentifier = "WA_REMINDER_CATEGORY"
                 content2.userInfo = [
+                    "messageId": "test_demo_id",
                     "actionType": "open_app"
                 ]
                 let trigger2 = UNTimeIntervalNotificationTrigger(timeInterval: 15, repeats: false)
@@ -180,14 +339,12 @@ struct ContentView: UIViewRepresentable {
                 return
             }
 
-            // Sincronización global inteligente (respeta límite de 64 notificaciones de iOS)
             if message.name == "syncAllNotifications", let payload = message.body as? [String: Any] {
                 let center = UNUserNotificationCenter.current()
                 let items = (payload["messages"] as? [[String: Any]]) ?? []
                 let reminderHours = (payload["reminderHours"] as? Int) ?? 2
                 let waMode = (payload["waMode"] as? String) ?? "whatsapp"
 
-                // Limpiar notificaciones anteriores (excepto pruebas activas) para reconstruir la cola exacta
                 center.getPendingNotificationRequests { requests in
                     let idsToRemove = requests.map { $0.identifier }.filter { !$0.hasPrefix("test_notif_") }
                     center.removePendingNotificationRequests(withIdentifiers: idsToRemove)
@@ -199,6 +356,7 @@ struct ContentView: UIViewRepresentable {
 
                     struct ScheduledItem {
                         let id: String
+                        let messageId: String
                         let date: Date
                         let title: String
                         let body: String
@@ -218,10 +376,10 @@ struct ContentView: UIViewRepresentable {
                               let waQuery = item["waQuery"] as? String,
                               let baseDate = formatter.date(from: "\(dateStr) \(timeStr)") else { continue }
 
-                        // 1. Notificación principal (si aún no ha pasado)
                         if baseDate > now {
                             queue.append(ScheduledItem(
                                 id: "\(id)_main",
+                                messageId: id,
                                 date: baseDate,
                                 title: "⏰ Envío pendiente: \(name)",
                                 body: "Para \(recipient): \(text)",
@@ -230,18 +388,17 @@ struct ContentView: UIViewRepresentable {
                             ))
                         }
 
-                        // 2. Recordatorios de seguimiento cada X horas hasta que se marque como enviado
                         if reminderHours > 0 {
                             let stepSeconds = TimeInterval(reminderHours * 3600)
                             for step in 1...12 {
                                 let remDate = baseDate.addingTimeInterval(stepSeconds * Double(step))
-                                // Solo programar recordatorios futuros (y dentro de los próximos 7 días)
                                 if remDate > now && remDate.timeIntervalSince(now) <= 7 * 86400 {
                                     queue.append(ScheduledItem(
                                         id: "\(id)_rem_\(step)",
+                                        messageId: id,
                                         date: remDate,
                                         title: "⚠️ Tienes mensajes que no has enviado",
-                                        body: "Campaña '\(name)' para \(recipient) sigue pendiente. Toca para revisar en la app.",
+                                        body: "Campaña '\(name)' para \(recipient) sigue pendiente. Mantén presionado para Listo, Posponer u Omitir.",
                                         isReminder: true,
                                         waQuery: waQuery
                                     ))
@@ -250,7 +407,6 @@ struct ContentView: UIViewRepresentable {
                         }
                     }
 
-                    // Ordenar cronológicamente y tomar las 60 más próximas (iOS permite máx 64 por app)
                     queue.sort { $0.date < $1.date }
                     let topQueue = queue.prefix(60)
 
@@ -263,11 +419,13 @@ struct ContentView: UIViewRepresentable {
                         if entry.isReminder {
                             content.categoryIdentifier = "WA_REMINDER_CATEGORY"
                             content.userInfo = [
+                                "messageId": entry.messageId,
                                 "actionType": "open_app"
                             ]
                         } else {
                             content.categoryIdentifier = "WA_MESSAGE_CATEGORY"
                             content.userInfo = [
+                                "messageId": entry.messageId,
                                 "actionType": "open_wa",
                                 "waMode": waMode,
                                 "waQuery": entry.waQuery
