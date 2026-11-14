@@ -984,11 +984,15 @@
                             <input type="text" id="msg-name" required placeholder="Ej: Recordatorio de Pago, Promoción..." class="w-full px-3 py-2 md:px-4 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-base md:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" autocomplete="off" />
                         </div>
 
-                        <div>
+                        <div id="recipient-picker-wrapper" class="relative">
                             <label class="block text-xs md:text-sm font-medium text-gray-700 mb-1">Destinatarios (Agrega uno o varios)</label>
                             <div class="flex gap-1.5 md:gap-2 relative">
-                                <input type="text" id="recipient" list="contacts-list" placeholder="Busca contacto o escribe número..." class="flex-1 w-full px-3 py-2 md:px-4 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-base md:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" autocomplete="off" />
-                                <datalist id="contacts-list"></datalist>
+                                <div class="flex-1 relative">
+                                    <input type="text" id="recipient" placeholder="Busca contacto o escribe número..." class="w-full pl-3 pr-8 py-2 md:pl-4 md:pr-9 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-base md:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" autocomplete="off" />
+                                    <button type="button" id="btn-toggle-contacts-dropdown" onclick="toggleContactsDropdown()" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-teal-600 p-1" title="Ver lista de contactos">
+                                        <i class="ph-bold ph-caret-down text-sm"></i>
+                                    </button>
+                                </div>
                                 <button type="button" id="btn-add-recipient" class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-medium text-xs md:text-sm transition-colors flex items-center gap-1 shrink-0 shadow-sm">
                                     <i class="ph ph-plus-bold"></i> Agregar
                                 </button>
@@ -996,6 +1000,8 @@
                                     <i class="ph ph-copy text-base md:text-lg"></i>
                                 </button>
                             </div>
+                            <!-- Lista desplegable visual sobre el teclado -->
+                            <div id="custom-contacts-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-52 overflow-y-auto custom-scrollbar divide-y divide-gray-100"></div>
                             <div id="selected-recipients-container" class="flex flex-wrap gap-1.5 mt-2"></div>
                         </div>
                         
@@ -1887,6 +1893,8 @@
             if (view === 'new') {
                 pTitle.textContent = "Nuevo Mensaje";
                 pDesc.textContent = "Programa un nuevo envío de WhatsApp.";
+                const timeEl = document.getElementById('msg-time');
+                if (timeEl && !timeEl.value) timeEl.value = '08:00';
             } else if (view === 'pending') {
                 pTitle.textContent = "Mensajes Pendientes";
                 pDesc.textContent = "Gestiona tus envíos manuales programados.";
@@ -2158,6 +2166,9 @@
             if (filterBtn && popover && !popover.classList.contains('hidden') && !filterBtn.contains(e.target) && !popover.contains(e.target)) {
                 popover.classList.add('hidden');
             }
+            if (!e.target.closest('#recipient-picker-wrapper')) {
+                window.closeContactsDropdown();
+            }
         });
 
         window.filterFromContact = (encodedName, category) => {
@@ -2192,7 +2203,6 @@
             if (isImportingContacts) return;
             
             const tableBody = document.getElementById('contacts-table-body');
-            const datalist = document.getElementById('contacts-list');
             const searchQuery = contactSearchInput ? contactSearchInput.value.toLowerCase() : '';
             
             const filteredContacts = allContacts.filter(c => 
@@ -2207,7 +2217,6 @@
                     <i class="ph ph-users text-4xl mb-2 opacity-50"></i><br>
                     ${allContacts.length > 0 ? 'No se encontraron resultados' : 'No hay contactos guardados'}
                 </td></tr>`;
-                datalist.innerHTML = '';
                 return;
             }
 
@@ -2278,7 +2287,9 @@
                 `;
             }).join('');
 
-            datalist.innerHTML = allContacts.map(c => `<option value="${c.name.replace(/</g, "&lt;")}  |  ${c.phone.replace(/</g, "&lt;")}">`).join('');
+            if (typeof window.renderCustomContactsDropdown === 'function') {
+                window.renderCustomContactsDropdown(document.getElementById('recipient')?.value || '');
+            }
         }
         
         window.toggleContactPopover = (id) => {
@@ -3320,11 +3331,86 @@
             }
         };
 
-        document.getElementById('recipient').addEventListener('input', (e) => {
+        // Lista desplegable personalizada de contactos (evita el selector nativo oculto en el teclado de iOS)
+        window.renderCustomContactsDropdown = function(filterText) {
+            const dropdown = document.getElementById('custom-contacts-dropdown');
+            if (!dropdown) return;
+            const query = (filterText || '').toLowerCase().trim();
+            const sorted = [...allContacts].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            const matches = query
+                ? sorted.filter(c => (c.name || '').toLowerCase().includes(query) || (c.phone || '').toLowerCase().includes(query))
+                : sorted;
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = `<div class="px-3.5 py-3 text-xs text-gray-400 text-center">${allContacts.length === 0 ? 'No hay contactos guardados' : 'Sin coincidencias — pulsa Agregar para usar este número'}</div>`;
+                return;
+            }
+
+            dropdown.innerHTML = matches.slice(0, 60).map(c => {
+                const safeName = (c.name || 'Sin nombre').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                const safePhone = (c.phone || '').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                const fullVal = `${c.name}  |  ${c.phone}`;
+                const initial = (c.name || '?').charAt(0).toUpperCase();
+                return `
+                    <button type="button" onclick="selectContactFromDropdown('${encodeURIComponent(fullVal)}')" class="w-full px-3 py-2 text-left hover:bg-teal-50 active:bg-teal-100 flex items-center justify-between gap-2 transition-colors">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-7 h-7 rounded-full bg-teal-50 border border-teal-200 text-teal-700 font-bold text-xs flex items-center justify-center shrink-0">${initial}</div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-semibold text-gray-800 truncate">${safeName}</p>
+                                <p class="text-[11px] font-mono text-gray-500 truncate">${safePhone}</p>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md shrink-0">+ Agregar</span>
+                    </button>
+                `;
+            }).join('');
+        };
+
+        window.openContactsDropdown = function() {
+            const dropdown = document.getElementById('custom-contacts-dropdown');
+            const input = document.getElementById('recipient');
+            if (!dropdown) return;
+            window.renderCustomContactsDropdown(input ? input.value : '');
+            dropdown.classList.remove('hidden');
+        };
+
+        window.closeContactsDropdown = function() {
+            const dropdown = document.getElementById('custom-contacts-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+        };
+
+        window.toggleContactsDropdown = function() {
+            const dropdown = document.getElementById('custom-contacts-dropdown');
+            if (!dropdown) return;
+            if (dropdown.classList.contains('hidden')) window.openContactsDropdown();
+            else window.closeContactsDropdown();
+        };
+
+        window.selectContactFromDropdown = function(encodedVal) {
+            const val = decodeURIComponent(encodedVal);
+            if (!selectedRecipients.includes(val)) {
+                selectedRecipients.push(val);
+                renderSelectedRecipients();
+                if (window.triggerNativeHaptic) window.triggerNativeHaptic('light');
+            } else {
+                showToast("Este destinatario ya está en la lista", "info");
+            }
+            const input = document.getElementById('recipient');
+            if (input) input.value = '';
+            document.getElementById('btn-copy-recipient').classList.add('hidden');
+            window.closeContactsDropdown();
+        };
+
+        const recipientInputEl = document.getElementById('recipient');
+        recipientInputEl.addEventListener('focus', () => {
+            window.openContactsDropdown();
+        });
+        recipientInputEl.addEventListener('input', (e) => {
             const val = e.target.value;
             const btn = document.getElementById('btn-copy-recipient');
             if (val.includes('+') || /\d{7,}/.test(val)) btn.classList.remove('hidden');
             else btn.classList.add('hidden');
+            window.openContactsDropdown();
         });
 
         const renderSelectedRecipients = () => {
@@ -3828,7 +3914,9 @@
                 renderSelectedRecipients();
                 document.getElementById('recurrence-options').classList.add('hidden');
                 document.getElementById('msg-end-date').removeAttribute('required');
-                document.getElementById('msg-date').valueAsDate = new Date();
+                const nowReset = new Date();
+                document.getElementById('msg-date').value = new Date(nowReset.getTime() - (nowReset.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                document.getElementById('msg-time').value = '08:00';
                 
             } catch (err) {
                 console.error("Error adding document:", err);
@@ -3847,11 +3935,7 @@
             const localTodayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
             document.getElementById('msg-date').value = localTodayStr;
             
-            let h = today.getHours();
-            let m = today.getMinutes();
-            if (m < 30) m = 30;
-            else { m = 0; h = (h + 1) % 24; }
-            document.getElementById('msg-time').value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            document.getElementById('msg-time').value = '08:00';
             setInterval(() => {
                 if (!document.getElementById('view-pending').classList.contains('hidden')) {
                     renderUI();
