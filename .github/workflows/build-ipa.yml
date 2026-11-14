@@ -12,14 +12,54 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Preparar proyecto Xcode nativo
+      - name: Preparar proyecto Xcode nativo e íconos
         run: |
-          mkdir -p WaSchedulerApp/WaSchedulerApp
+          mkdir -p WaSchedulerApp/WaSchedulerApp/Assets.xcassets/AppIcon.appiconset
           cp SourceCode/WaSchedulerApp.swift WaSchedulerApp/WaSchedulerApp/
           cp Payload/WaScheduler.app/index.html WaSchedulerApp/WaSchedulerApp/
-          cp Payload/WaScheduler.app/AppIcon60x60@2x.png WaSchedulerApp/WaSchedulerApp/
-          cp Payload/WaScheduler.app/AppIcon60x60@3x.png WaSchedulerApp/WaSchedulerApp/
-          cp Payload/WaScheduler.app/AppIcon1024x1024.png WaSchedulerApp/WaSchedulerApp/
+          
+          # Copiar íconos al catálogo de activos nativo de Xcode
+          cp Payload/WaScheduler.app/AppIcon60x60@2x.png WaSchedulerApp/WaSchedulerApp/Assets.xcassets/AppIcon.appiconset/
+          cp Payload/WaScheduler.app/AppIcon60x60@3x.png WaSchedulerApp/WaSchedulerApp/Assets.xcassets/AppIcon.appiconset/
+          cp Payload/WaScheduler.app/AppIcon1024x1024.png WaSchedulerApp/WaSchedulerApp/Assets.xcassets/AppIcon.appiconset/
+
+          cat << 'EOF' > WaSchedulerApp/WaSchedulerApp/Assets.xcassets/Contents.json
+          {
+            "info" : {
+              "author" : "xcode",
+              "version" : 1
+            }
+          }
+          EOF
+
+          cat << 'EOF' > WaSchedulerApp/WaSchedulerApp/Assets.xcassets/AppIcon.appiconset/Contents.json
+          {
+            "images" : [
+              {
+                "filename" : "AppIcon60x60@2x.png",
+                "idiom" : "iphone",
+                "scale" : "2x",
+                "size" : "60x60"
+              },
+              {
+                "filename" : "AppIcon60x60@3x.png",
+                "idiom" : "iphone",
+                "scale" : "3x",
+                "size" : "60x60"
+              },
+              {
+                "filename" : "AppIcon1024x1024.png",
+                "idiom" : "ios-marketing",
+                "scale" : "1x",
+                "size" : "1024x1024"
+              }
+            ],
+            "info" : {
+              "author" : "xcode",
+              "version" : 1
+            }
+          }
+          EOF
           
           cat << 'EOF' > WaSchedulerApp/project.yml
           name: WaScheduler
@@ -32,28 +72,32 @@ jobs:
               deploymentTarget: "15.0"
               sources:
                 - path: WaSchedulerApp
-                  excludes:
-                    - "**/*.png"
-              resources:
-                - path: WaSchedulerApp/index.html
-                - path: WaSchedulerApp/AppIcon60x60@2x.png
-                - path: WaSchedulerApp/AppIcon60x60@3x.png
-                - path: WaSchedulerApp/AppIcon1024x1024.png
+              info:
+                path: WaSchedulerApp/Info.plist
+                properties:
+                  CFBundleDisplayName: "WaScheduler"
+                  CFBundleShortVersionString: "1.0.0"
+                  CFBundleVersion: "1"
+                  LSRequiresIPhoneOS: true
+                  UILaunchScreen:
+                    UIColorName: ""
+                  UISupportedInterfaceOrientations:
+                    - UIInterfaceOrientationPortrait
+                  LSApplicationQueriesSchemes:
+                    - whatsapp
+                    - whatsapp-smb
+                  NSAppTransportSecurity:
+                    NSAllowsArbitraryLoads: true
               settings:
                 base:
                   PRODUCT_BUNDLE_IDENTIFIER: com.hugoangarita.wascheduler
                   MARKETING_VERSION: "1.0.0"
                   CURRENT_PROJECT_VERSION: "1"
-                  GENERATE_INFOPLIST_FILE: "YES"
+                  ASSETCATALOG_COMPILER_APPICON_NAME: "AppIcon"
                   CODE_SIGNING_ALLOWED: "NO"
                   CODE_SIGNING_REQUIRED: "NO"
                   CODE_SIGN_IDENTITY: ""
                   DEVELOPMENT_TEAM: ""
-                  INFOPLIST_KEY_CFBundleDisplayName: "WaScheduler"
-                  INFOPLIST_KEY_LSApplicationQueriesSchemes: "whatsapp whatsapp-smb"
-                  INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-                  INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
-                  INFOPLIST_KEY_CFBundleIconFiles: "AppIcon60x60@2x.png AppIcon60x60@3x.png AppIcon1024x1024.png"
           EOF
 
       - name: Instalar XcodeGen y generar proyecto
