@@ -384,6 +384,7 @@
             if (window.syncNativeNotifications && typeof allMessages !== 'undefined') {
                 window.syncNativeNotifications(allMessages);
             }
+            if (typeof renderUI === 'function') renderUI();
             if (typeof showToast === 'function') {
                 showToast(h > 0 ? 'Recordatorio configurado cada ' + h + 'h' : 'Recordatorios repetitivos desactivados', 'info');
             }
@@ -2830,6 +2831,49 @@
             sidebarSearch.addEventListener('input', (e) => renderSidebarList(e.target.value));
         }
 
+        window.getReminderBadgeHTML = function(msg) {
+            var remHours = window.getReminderIntervalHours ? window.getReminderIntervalHours() : 2;
+            var scheduledTs = new Date(msg.date + 'T' + msg.time).getTime();
+            var nowTs = Date.now();
+            if (isNaN(scheduledTs)) return '';
+
+            if (nowTs <= scheduledTs) {
+                if (remHours > 0) {
+                    return '<span class="bg-teal-50 text-teal-700 border border-teal-200 text-[9px] md:text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shrink-0"><i class="ph ph-bell-ringing"></i> Rec. cada ' + remHours + 'h</span>';
+                }
+                return '';
+            }
+
+            // Ya pasó su hora programada
+            if (remHours <= 0) {
+                return '<span class="bg-red-100 text-red-700 border border-red-200 text-[9px] md:text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shrink-0"><i class="ph-fill ph-warning-circle"></i> Hora pasada (Sin rec.)</span>';
+            }
+
+            var stepMs = remHours * 3600 * 1000;
+            var elapsedMs = nowTs - scheduledTs;
+            var passedSteps = Math.floor(elapsedMs / stepMs); // 0 = pasó la hora principal, esperando 1er recordatorio; 1 = ya pasó 1er rec., etc.
+            var nextStep = passedSteps + 1;
+
+            if (nextStep > 12) {
+                return '<span class="bg-red-100 text-red-700 border border-red-200 text-[9px] md:text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shrink-0"><i class="ph-fill ph-bell-slash"></i> ' + passedSteps + ' rec. enviados</span>';
+            }
+
+            var nextTs = scheduledTs + (nextStep * stepMs);
+            var nextDate = new Date(nextTs);
+            var h = nextDate.getHours();
+            var m = nextDate.getMinutes().toString().padStart(2, '0');
+            var ampm = h >= 12 ? 'PM' : 'AM';
+            var h12 = h % 12 || 12;
+            var timeLabel = h12 + ':' + m + ' ' + ampm;
+
+            var todayStr = new Date().toISOString().split('T')[0];
+            var nextDayStr = new Date(nextDate.getTime() - (nextDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            var dayPrefix = (nextDayStr !== todayStr) ? 'mañana ' : '';
+
+            var sentInfo = passedSteps > 0 ? (' · ' + passedSteps + ' rec.') : '';
+            return '<span class="bg-amber-100 text-amber-800 border border-amber-300 text-[9px] md:text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 whitespace-nowrap shrink-0"><i class="ph-fill ph-bell-ringing text-amber-600"></i> Vencido' + sentInfo + ' · Próx: ' + dayPrefix + timeLabel + '</span>';
+        };
+
         function createMessageCard(msg, isPending) {
             let urgencyClass = 'border-gray-200 bg-gray-50';
             let badgeClass = 'bg-green-100 text-green-700';
@@ -2874,6 +2918,7 @@
             if(msg.isPostponed) {
                 postBadge = `<span class="bg-purple-100 text-purple-700 text-[9px] md:text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shrink-0"><i class="ph ph-calendar-plus"></i> Posp. ${msg.totalPostponedDays || 0}d</span>`;
             }
+            const reminderBadge = isPending && window.getReminderBadgeHTML ? window.getReminderBadgeHTML(msg) : '';
             
             let historyStatusBadge = '';
             if(!isPending) {
@@ -2942,6 +2987,7 @@
                             ${mobileMoraBadge}
                             ${recBadge}
                             ${postBadge}
+                            ${reminderBadge}
                         </div>
 
                         <div class="bg-white/80 border border-gray-100 rounded-lg p-1.5 text-[11px] leading-snug text-gray-700 whitespace-pre-wrap max-h-16 overflow-y-auto custom-scrollbar relative pr-6">
@@ -2998,6 +3044,7 @@
                                 ${recBadge}
                                 ${postBadge}
                                 ${moraBadge}
+                                ${reminderBadge}
                             </div>
                         </div>
                         ${isPending ? `
@@ -3512,6 +3559,11 @@
             if (m < 30) m = 30;
             else { m = 0; h = (h + 1) % 24; }
             document.getElementById('msg-time').value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            setInterval(() => {
+                if (!document.getElementById('view-pending').classList.contains('hidden')) {
+                    renderUI();
+                }
+            }, 30000);
         });
 
         initialize();
