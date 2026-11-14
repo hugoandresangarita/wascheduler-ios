@@ -371,6 +371,24 @@
             return 'whatsapp';
         };
 
+        window.getReminderIntervalHours = function() {
+            var val = localStorage.getItem('wascheduler_reminder_hours');
+            if (val === null) return 2; // Por defecto cada 2 horas
+            return parseInt(val, 10);
+        };
+
+        window.setReminderIntervalHours = function(hours) {
+            var h = parseInt(hours, 10);
+            localStorage.setItem('wascheduler_reminder_hours', String(h));
+            window.syncWaSettingsUI();
+            if (window.syncNativeNotifications && typeof allMessages !== 'undefined') {
+                window.syncNativeNotifications(allMessages);
+            }
+            if (typeof showToast === 'function') {
+                showToast(h > 0 ? 'Recordatorio configurado cada ' + h + 'h' : 'Recordatorios repetitivos desactivados', 'info');
+            }
+        };
+
         window.toggleWaAppSetting = function(type) {
             var s = window.getWaSettings();
             if (type === 'normal') {
@@ -400,17 +418,19 @@
 
         window.syncWaSettingsUI = function() {
             var s = window.getWaSettings();
+            var remHours = String(window.getReminderIntervalHours());
             ['desk', 'modal'].forEach(function(prefix) {
                 var chkN = document.getElementById(prefix + '-chk-wa-normal');
                 var chkB = document.getElementById(prefix + '-chk-wa-business');
+                var selR = document.getElementById(prefix + '-reminder-interval');
                 if (chkN) chkN.checked = s.normal;
                 if (chkB) chkB.checked = s.business;
+                if (selR) selR.value = remHours;
             });
             var badgeMob = document.getElementById('mob-wa-mode-label');
             if (badgeMob) {
-                if (s.normal && s.business) badgeMob.textContent = 'Ambos';
-                else if (s.business) badgeMob.textContent = 'Business';
-                else badgeMob.textContent = 'Normal';
+                var modeTxt = (s.normal && s.business) ? 'Ambos' : (s.business ? 'Business' : 'Normal');
+                badgeMob.textContent = remHours !== '0' ? (modeTxt + ' · ' + remHours + 'h') : modeTxt;
             }
         };
 
@@ -454,10 +474,17 @@
         window.launchWhatsAppDirect = function(scheme, cleanPhone, text) {
             var isIOSWebView = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.openExternal);
             if (isIOSWebView) {
-                var nativeUrl = cleanPhone
-                    ? scheme + '://send?phone=' + cleanPhone + '&text=' + encodeURIComponent(text)
-                    : scheme + '://send?text=' + encodeURIComponent(text);
-                window.webkit.messageHandlers.openExternal.postMessage(nativeUrl);
+                var targetUrl = '';
+                if (scheme === 'whatsapp-smb') {
+                    targetUrl = cleanPhone
+                        ? 'whatsapp-smb://send?phone=' + cleanPhone + '&text=' + encodeURIComponent(text)
+                        : 'whatsapp-smb://send?text=' + encodeURIComponent(text);
+                } else {
+                    targetUrl = cleanPhone
+                        ? 'https://api.whatsapp.com/send?phone=' + cleanPhone + '&text=' + encodeURIComponent(text)
+                        : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(text);
+                }
+                window.webkit.messageHandlers.openExternal.postMessage(targetUrl);
             } else {
                 var webUrl = cleanPhone
                     ? 'https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(text)
@@ -482,11 +509,13 @@
             }
         }, true);
 
-        // Puente de notificaciones nativas iOS
+        // Puente de notificaciones nativas iOS (Notificación 1 -> WhatsApp | Recordatorios cada Xh -> App)
         window.syncNativeNotifications = function(messages) {
-            if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.scheduleNotification) return;
+            if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.syncAllNotifications) return;
             var mode = window.getWaMode();
+            var reminderHours = window.getReminderIntervalHours();
 
+            var pendingPayload = [];
             messages.forEach(function(msg) {
                 if (msg.status === 'pending') {
                     var phoneMatch = (msg.recipient || '').match(/[\+\d\s-]{8,}/);
@@ -495,26 +524,30 @@
                         ? 'phone=' + cleanPhone + '&text=' + encodeURIComponent(msg.text || '')
                         : 'text=' + encodeURIComponent(msg.text || '');
 
-                    window.webkit.messageHandlers.scheduleNotification.postMessage({
+                    pendingPayload.push({
                         id: msg.id,
-                        title: '⏰ Envío pendiente: ' + (msg.name || 'WaScheduler'),
-                        body: 'Para ' + msg.recipient + ': ' + msg.text,
+                        name: msg.name || 'WaScheduler',
+                        recipient: msg.recipient || '',
+                        text: msg.text || '',
                         date: msg.date,
                         time: msg.time,
-                        waMode: mode,
                         waQuery: waQuery
                     });
-                } else if (window.webkit.messageHandlers.cancelNotification) {
-                    window.webkit.messageHandlers.cancelNotification.postMessage(msg.id);
                 }
+            });
+
+            window.webkit.messageHandlers.syncAllNotifications.postMessage({
+                waMode: mode,
+                reminderHours: reminderHours,
+                messages: pendingPayload
             });
         };
 
-        // Disparar notificación de prueba en 5 segundos
+        // Disparar prueba: Notificación 1 en 5s (abre WhatsApp) y Notificación 2 en 15s (abre la App)
         window.triggerTestNotification = function() {
             if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.testNotification) {
                 window.webkit.messageHandlers.testNotification.postMessage(window.getWaMode());
-                alert('Notificación programada en 5 segundos. Puedes cerrar la app por completo para probar.');
+                alert('Prueba iniciada:\n• En 5s llegará la 1ª notificación (abre WhatsApp).\n• En 15s llegará el 2º recordatorio (abre WaScheduler para evitar duplicados).\nPuedes cerrar la app para probar.');
             } else {
                 alert('Esta prueba funciona únicamente dentro de la app instalada en iOS.');
             }
@@ -623,6 +656,16 @@
                     <span class="text-xs font-medium text-gray-700 flex items-center gap-1.5"><i class="ph-fill ph-briefcase text-teal-700 text-base"></i> WA Business</span>
                     <input type="checkbox" id="desk-chk-wa-business" onchange="toggleWaAppSetting('business')" class="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
                 </label>
+                <div class="border-t border-gray-200 my-1"></div>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Recordar sin enviar cada</label>
+                <select id="desk-reminder-interval" onchange="setReminderIntervalHours(this.value)" class="w-full px-2 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold outline-none focus:border-teal-500">
+                    <option value="2">Cada 2 horas</option>
+                    <option value="4">Cada 4 horas</option>
+                    <option value="6">Cada 6 horas</option>
+                    <option value="8">Cada 8 horas</option>
+                    <option value="12">Cada 12 horas</option>
+                    <option value="0">Desactivado</option>
+                </select>
             </div>
             <button onclick="triggerTestNotification()" class="w-full py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-xs font-semibold flex items-center justify-center lg:justify-start gap-2 transition-colors" title="Probar notificación en 5 segundos">
                 <i class="ph-bold ph-bell-ringing text-base shrink-0"></i>
@@ -1176,30 +1219,46 @@
         </div>
     </div>
 
-    <!-- Modal Configurar Apps de WhatsApp -->
+    <!-- Modal Configurar Apps de WhatsApp y Recordatorios -->
     <div id="wa-config-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden p-5">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-base font-bold text-gray-900 flex items-center gap-2">
-                    <i class="ph-fill ph-whatsapp-logo text-teal-600 text-xl"></i> Apps de Envío
+                    <i class="ph-fill ph-gear text-teal-600 text-xl"></i> Configuración
                 </h3>
                 <button onclick="closeWaConfigModal()" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-lg"></i></button>
             </div>
-            <p class="text-xs text-gray-500 mb-4">Activa una para abrirla directo sin preguntar, o activa ambas para elegir al enviar.</p>
-            <div class="space-y-2.5 mb-5">
-                <label class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer">
-                    <span class="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                        <i class="ph-fill ph-whatsapp-logo text-[#25D366] text-xl"></i> WhatsApp Normal
+            <p class="text-[11px] text-gray-500 mb-3">Activa una app para abrirla directo sin preguntar, o ambas para elegir al enviar.</p>
+            <div class="space-y-2 mb-4">
+                <label class="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer">
+                    <span class="text-xs font-semibold text-gray-800 flex items-center gap-2">
+                        <i class="ph-fill ph-whatsapp-logo text-[#25D366] text-lg"></i> WhatsApp Normal
                     </span>
-                    <input type="checkbox" id="modal-chk-wa-normal" onchange="toggleWaAppSetting('normal')" class="w-5 h-5 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
+                    <input type="checkbox" id="modal-chk-wa-normal" onchange="toggleWaAppSetting('normal')" class="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
                 </label>
-                <label class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer">
-                    <span class="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                        <i class="ph-fill ph-briefcase text-teal-700 text-xl"></i> WhatsApp Business
+                <label class="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer">
+                    <span class="text-xs font-semibold text-gray-800 flex items-center gap-2">
+                        <i class="ph-fill ph-briefcase text-teal-700 text-lg"></i> WhatsApp Business
                     </span>
-                    <input type="checkbox" id="modal-chk-wa-business" onchange="toggleWaAppSetting('business')" class="w-5 h-5 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
+                    <input type="checkbox" id="modal-chk-wa-business" onchange="toggleWaAppSetting('business')" class="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
                 </label>
             </div>
+
+            <div class="border-t border-gray-100 pt-3 mb-4">
+                <label class="block text-xs font-bold text-gray-800 mb-1 flex items-center gap-1.5">
+                    <i class="ph-fill ph-bell-ringing text-amber-500 text-base"></i> Recordatorio si no se envía
+                </label>
+                <p class="text-[11px] text-gray-500 mb-2">Si borras la 1ª notificación o no marcas el mensaje como Listo, te avisará cada:</p>
+                <select id="modal-reminder-interval" onchange="setReminderIntervalHours(this.value)" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl text-xs font-semibold outline-none focus:border-teal-500">
+                    <option value="2">Cada 2 horas (Recomendado)</option>
+                    <option value="4">Cada 4 horas</option>
+                    <option value="6">Cada 6 horas</option>
+                    <option value="8">Cada 8 horas</option>
+                    <option value="12">Cada 12 horas</option>
+                    <option value="0">Desactivado (Solo 1 aviso)</option>
+                </select>
+            </div>
+
             <button onclick="closeWaConfigModal()" class="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition-colors">Listo</button>
         </div>
     </div>

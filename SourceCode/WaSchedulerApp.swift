@@ -10,9 +10,19 @@ class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound, .badge])
     }
 
-    // Abrir WhatsApp / WhatsApp Business o preguntar si ambos están activos (incluso si la app estaba cerrada)
+    // Manejar toque en la notificación:
+    // - Si actionType == "open_app": abre WaScheduler directamente en Pendientes (para evitar envíos duplicados).
+    // - Si actionType == "open_wa": abre WhatsApp Normal / Business (o pregunta si ambos están activos).
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
+        let actionType = (userInfo["actionType"] as? String) ?? "open_wa"
+
+        if actionType == "open_app" {
+            // Al abrir la app por defecto en iOS, se muestra la vista Pendientes automáticamente
+            completionHandler()
+            return
+        }
+
         let mode = (userInfo["waMode"] as? String) ?? "whatsapp"
         let query = (userInfo["waQuery"] as? String) ?? ""
 
@@ -20,7 +30,7 @@ class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             if mode == "both" {
                 let alert = UIAlertController(title: "Enviar mensaje", message: "¿Con qué aplicación deseas abrir este envío?", preferredStyle: .actionSheet)
                 alert.addAction(UIAlertAction(title: "WhatsApp Normal", style: .default) { _ in
-                    if let url = URL(string: "whatsapp://send?\(query)") {
+                    if let url = URL(string: "https://api.whatsapp.com/send?\(query)") {
                         UIApplication.shared.open(url, options: [:], completionHandler: nil)
                     }
                 })
@@ -40,9 +50,12 @@ class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                     }
                     rootVC.present(alert, animated: true)
                 }
+            } else if mode == "whatsapp-smb" {
+                if let url = URL(string: "whatsapp-smb://send?\(query)") {
+                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                }
             } else {
-                let scheme = (mode == "whatsapp-smb") ? "whatsapp-smb" : "whatsapp"
-                if let url = URL(string: "\(scheme)://send?\(query)") {
+                if let url = URL(string: "https://api.whatsapp.com/send?\(query)") {
                     UIApplication.shared.open(url, options: [:], completionHandler: nil)
                 }
             }
@@ -62,13 +75,26 @@ struct WaSchedulerApp: App {
             title: "Abrir WhatsApp",
             options: [.foreground]
         )
-        let category = UNNotificationCategory(
+        let waCategory = UNNotificationCategory(
             identifier: "WA_MESSAGE_CATEGORY",
             actions: [openAction],
             intentIdentifiers: [],
             options: []
         )
-        center.setNotificationCategories([category])
+
+        let reviewAction = UNNotificationAction(
+            identifier: "REVIEW_APP_ACTION",
+            title: "Revisar en WaScheduler",
+            options: [.foreground]
+        )
+        let reminderCategory = UNNotificationCategory(
+            identifier: "WA_REMINDER_CATEGORY",
+            actions: [reviewAction],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        center.setNotificationCategories([waCategory, reminderCategory])
 
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
@@ -96,8 +122,7 @@ struct ContentView: UIViewRepresentable {
         config.preferences.javaScriptEnabled = true
         
         config.userContentController.add(context.coordinator, name: "openExternal")
-        config.userContentController.add(context.coordinator, name: "scheduleNotification")
-        config.userContentController.add(context.coordinator, name: "cancelNotification")
+        config.userContentController.add(context.coordinator, name: "syncAllNotifications")
         config.userContentController.add(context.coordinator, name: "testNotification")
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -125,59 +150,137 @@ struct ContentView: UIViewRepresentable {
 
             if message.name == "testNotification" {
                 let mode = (message.body as? String) ?? "whatsapp"
-                let content = UNMutableNotificationContent()
-                content.title = "🔔 Prueba WaScheduler"
-                content.body = "Toca esta notificación para abrir WhatsApp según tu configuración."
-                content.sound = .default
-                content.categoryIdentifier = "WA_MESSAGE_CATEGORY"
-                content.userInfo = [
+                let center = UNUserNotificationCenter.current()
+
+                // 1. Notificación inicial en 5s (abre WhatsApp)
+                let content1 = UNMutableNotificationContent()
+                content1.title = "🔔 Prueba 1: Envío Programado"
+                content1.body = "Toca para abrir WhatsApp con el mensaje listo."
+                content1.sound = .default
+                content1.categoryIdentifier = "WA_MESSAGE_CATEGORY"
+                content1.userInfo = [
+                    "actionType": "open_wa",
                     "waMode": mode,
                     "waQuery": "text=Hola%2C%20esta%20es%20una%20prueba%20desde%20WaScheduler"
                 ]
+                let trigger1 = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+                center.add(UNNotificationRequest(identifier: "test_notif_1_\(UUID().uuidString)", content: content1, trigger: trigger1))
 
-                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
-                let request = UNNotificationRequest(identifier: "test_notif_\(UUID().uuidString)", content: content, trigger: trigger)
-                UNUserNotificationCenter.current().add(request)
+                // 2. Recordatorio de seguimiento en 15s (abre WaScheduler para evitar duplicados)
+                let content2 = UNMutableNotificationContent()
+                content2.title = "⚠️ Prueba 2: Tienes un mensaje sin enviar"
+                content2.body = "Toca para abrir WaScheduler y confirmar si ya lo enviaste."
+                content2.sound = .default
+                content2.categoryIdentifier = "WA_REMINDER_CATEGORY"
+                content2.userInfo = [
+                    "actionType": "open_app"
+                ]
+                let trigger2 = UNTimeIntervalNotificationTrigger(timeInterval: 15, repeats: false)
+                center.add(UNNotificationRequest(identifier: "test_notif_2_\(UUID().uuidString)", content: content2, trigger: trigger2))
                 return
             }
 
-            if message.name == "scheduleNotification", let data = message.body as? [String: Any] {
-                guard let id = data["id"] as? String,
-                      let title = data["title"] as? String,
-                      let body = data["body"] as? String,
-                      let dateStr = data["date"] as? String,
-                      let timeStr = data["time"] as? String else { return }
+            // Sincronización global inteligente (respeta límite de 64 notificaciones de iOS)
+            if message.name == "syncAllNotifications", let payload = message.body as? [String: Any] {
+                let center = UNUserNotificationCenter.current()
+                let items = (payload["messages"] as? [[String: Any]]) ?? []
+                let reminderHours = (payload["reminderHours"] as? Int) ?? 2
+                let waMode = (payload["waMode"] as? String) ?? "whatsapp"
 
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                formatter.locale = Locale(identifier: "en_US_POSIX")
+                // Limpiar notificaciones anteriores (excepto pruebas activas) para reconstruir la cola exacta
+                center.getPendingNotificationRequests { requests in
+                    let idsToRemove = requests.map { $0.identifier }.filter { !$0.hasPrefix("test_notif_") }
+                    center.removePendingNotificationRequests(withIdentifiers: idsToRemove)
 
-                if let targetDate = formatter.date(from: "\(dateStr) \(timeStr)"), targetDate > Date() {
-                    let content = UNMutableNotificationContent()
-                    content.title = title
-                    content.body = body
-                    content.sound = .default
-                    content.categoryIdentifier = "WA_MESSAGE_CATEGORY"
-                    
-                    let mode = (data["waMode"] as? String) ?? "whatsapp"
-                    let query = (data["waQuery"] as? String) ?? ""
-                    content.userInfo = [
-                        "waMode": mode,
-                        "waQuery": query
-                    ]
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                    formatter.locale = Locale(identifier: "en_US_POSIX")
+                    let now = Date()
 
-                    let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: targetDate)
-                    let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-                    let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                    struct ScheduledItem {
+                        let id: String
+                        let date: Date
+                        let title: String
+                        let body: String
+                        let isReminder: Bool
+                        let waQuery: String
+                    }
 
-                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
-                    UNUserNotificationCenter.current().add(request)
+                    var queue: [ScheduledItem] = []
+
+                    for item in items {
+                        guard let id = item["id"] as? String,
+                              let name = item["name"] as? String,
+                              let recipient = item["recipient"] as? String,
+                              let text = item["text"] as? String,
+                              let dateStr = item["date"] as? String,
+                              let timeStr = item["time"] as? String,
+                              let waQuery = item["waQuery"] as? String,
+                              let baseDate = formatter.date(from: "\(dateStr) \(timeStr)") else { continue }
+
+                        // 1. Notificación principal (si aún no ha pasado)
+                        if baseDate > now {
+                            queue.append(ScheduledItem(
+                                id: "\(id)_main",
+                                date: baseDate,
+                                title: "⏰ Envío pendiente: \(name)",
+                                body: "Para \(recipient): \(text)",
+                                isReminder: false,
+                                waQuery: waQuery
+                            ))
+                        }
+
+                        // 2. Recordatorios de seguimiento cada X horas hasta que se marque como enviado
+                        if reminderHours > 0 {
+                            let stepSeconds = TimeInterval(reminderHours * 3600)
+                            for step in 1...12 {
+                                let remDate = baseDate.addingTimeInterval(stepSeconds * Double(step))
+                                // Solo programar recordatorios futuros (y dentro de los próximos 7 días)
+                                if remDate > now && remDate.timeIntervalSince(now) <= 7 * 86400 {
+                                    queue.append(ScheduledItem(
+                                        id: "\(id)_rem_\(step)",
+                                        date: remDate,
+                                        title: "⚠️ Tienes mensajes que no has enviado",
+                                        body: "Campaña '\(name)' para \(recipient) sigue pendiente. Toca para revisar en la app.",
+                                        isReminder: true,
+                                        waQuery: waQuery
+                                    ))
+                                }
+                            }
+                        }
+                    }
+
+                    // Ordenar cronológicamente y tomar las 60 más próximas (iOS permite máx 64 por app)
+                    queue.sort { $0.date < $1.date }
+                    let topQueue = queue.prefix(60)
+
+                    for entry in topQueue {
+                        let content = UNMutableNotificationContent()
+                        content.title = entry.title
+                        content.body = entry.body
+                        content.sound = .default
+
+                        if entry.isReminder {
+                            content.categoryIdentifier = "WA_REMINDER_CATEGORY"
+                            content.userInfo = [
+                                "actionType": "open_app"
+                            ]
+                        } else {
+                            content.categoryIdentifier = "WA_MESSAGE_CATEGORY"
+                            content.userInfo = [
+                                "actionType": "open_wa",
+                                "waMode": waMode,
+                                "waQuery": entry.waQuery
+                            ]
+                        }
+
+                        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: entry.date)
+                        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+                        let request = UNNotificationRequest(identifier: entry.id, content: content, trigger: trigger)
+                        center.add(request)
+                    }
                 }
                 return
-            }
-
-            if message.name == "cancelNotification", let id = message.body as? String {
-                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
             }
         }
 
