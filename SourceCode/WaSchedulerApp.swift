@@ -1,8 +1,34 @@
 import SwiftUI
 import WebKit
+import UserNotifications
 
 @main
 struct WaSchedulerApp: App {
+    init() {
+        let center = UNUserNotificationCenter.current()
+        
+        // Registrar acción rápida "Abrir WhatsApp" en la notificación
+        let openAction = UNNotificationAction(
+            identifier: "OPEN_WHATSAPP_ACTION",
+            title: "Abrir WhatsApp",
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: "WA_MESSAGE_CATEGORY",
+            actions: [openAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
+
+        // Solicitar permiso de notificaciones locales
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error = error {
+                print("Error solicitando permisos de notificación: \(error.localizedDescription)")
+            }
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -21,8 +47,10 @@ struct ContentView: UIViewRepresentable {
         config.allowsInlineMediaPlayback = true
         config.preferences.javaScriptEnabled = true
         
-        // Registrar handler para abrir WhatsApp nativo desde el botón Enviar
         config.userContentController.add(context.coordinator, name: "openExternal")
+        config.userContentController.add(context.coordinator, name: "scheduleNotification")
+        config.userContentController.add(context.coordinator, name: "cancelNotification")
+        config.userContentController.add(context.coordinator, name: "testNotification")
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -31,7 +59,8 @@ struct ContentView: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = UIColor(red: 0.953, green: 0.957, blue: 0.965, alpha: 1.0)
 
-        // Cargar index.html empaquetado localmente dentro de la app
+        UNUserNotificationCenter.current().delegate = context.coordinator
+
         if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html") {
             webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
         }
@@ -40,10 +69,98 @@ struct ContentView: UIViewRepresentable {
 
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
-    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
+        
+        // Mostrar notificaciones incluso con la app abierta en primer plano
+        func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+            completionHandler([.banner, .sound, .badge])
+        }
+
+        // Abrir WhatsApp directamente al tocar la notificación o su botón de acción
+        func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+            let userInfo = response.notification.request.content.userInfo
+            if let waUrlString = userInfo["waUrl"] as? String, let url = URL(string: waUrlString) {
+                DispatchQueue.main.async {
+                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                }
+            }
+            completionHandler()
+        }
+
+        // Recibir mensajes desde JavaScript (index.html)
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "openExternal", let urlString = message.body as? String, let url = URL(string: urlString) {
                 UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                return
+            }
+
+            if message.name == "testNotification" {
+                let content = UNMutableNotificationContent()
+                content.title = "🔔 Prueba WaScheduler"
+                content.body = "Toca esta notificación para abrir WhatsApp con un mensaje de prueba."
+                content.sound = .default
+                content.categoryIdentifier = "WA_MESSAGE_CATEGORY"
+                content.userInfo = ["waUrl": "whatsapp://send?text=Hola%2C%20esta%20es%20una%20prueba%20desde%20WaScheduler"]
+
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+                let request = UNNotificationRequest(identifier: "test_notif_\(UUID().uuidString)", content: content, trigger: trigger)
+                UNUserNotificationCenter.current().add(request)
+                return
+            }
+
+            if message.name == "scheduleNotification", let data = message.body as? [String: Any] {
+                guard let id = data["id"] as? String,
+                      let title = data["title"] as? String,
+                      let body = data["body"] as? String,
+                      let dateStr = data["date"] as? String,
+                      let timeStr = data["time"] as? String else { return }
+
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+
+                if let targetDate = formatter.date(from: "\(dateStr) \(timeStr)"), targetDate > Date() {
+                    let content = UNMutableNotificationContent()
+                    content.title = title
+                    content.body = body
+                    content.sound = .default
+                    content.categoryIdentifier = "WA_MESSAGE_CATEGORY"
+                    
+                    if let waUrl = data["waUrl"] as? String {
+                        content.userInfo = ["waUrl": waUrl]
+                    }
+
+                    let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: targetDate)
+                    let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                    let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+
+                    UNUserNotificationCenter.current().add(request)
+                }
+                return
+            }
+
+            if message.name == "cancelNotification", let id = message.body as? String {
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+            }
+        }
+
+        func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+            let alert = UIAlertController(title: "WaScheduler", message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
+            presentAlert(alert)
+        }
+
+        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+            let alert = UIAlertController(title: "Confirmar", message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel) { _ in completionHandler(false) })
+            alert.addAction(UIAlertAction(title: "Aceptar", style: .default) { _ in completionHandler(true) })
+            presentAlert(alert)
+        }
+
+        private func presentAlert(_ alert: UIAlertController) {
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = scene.windows.first?.rootViewController {
+                rootVC.present(alert, animated: true)
             }
         }
 

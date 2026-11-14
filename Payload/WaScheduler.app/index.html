@@ -367,6 +367,43 @@
             }
         }, true);
     </script>
+<script>
+    // Puente de notificaciones nativas iOS con enlace directo a WhatsApp
+    window.syncNativeNotifications = function(messages) {
+        if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.scheduleNotification) return;
+        
+        messages.forEach(function(msg) {
+            if (msg.status === 'pending') {
+                var phoneMatch = (msg.recipient || '').match(/[\+\d\s-]{8,}/);
+                var purePhone = phoneMatch ? phoneMatch[0].replace(/[^\d]/g, '') : '';
+                var waUrl = purePhone 
+                    ? 'whatsapp://send?phone=' + purePhone + '&text=' + encodeURIComponent(msg.text || '')
+                    : 'whatsapp://send?text=' + encodeURIComponent(msg.text || '');
+
+                window.webkit.messageHandlers.scheduleNotification.postMessage({
+                    id: msg.id,
+                    title: '⏰ Envío pendiente: ' + (msg.name || 'WaScheduler'),
+                    body: 'Para ' + msg.recipient + ': ' + msg.text,
+                    date: msg.date,
+                    time: msg.time,
+                    waUrl: waUrl
+                });
+            } else if (window.webkit.messageHandlers.cancelNotification) {
+                window.webkit.messageHandlers.cancelNotification.postMessage(msg.id);
+            }
+        });
+    };
+
+    // Disparar notificación de prueba en 5 segundos
+    window.triggerTestNotification = function() {
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.testNotification) {
+            window.webkit.messageHandlers.testNotification.postMessage('test');
+            alert('Notificación programada en 5 segundos. Bloquea la pantalla o sal al inicio para probarla.');
+        } else {
+            alert('Esta prueba funciona únicamente dentro de la app instalada en iOS.');
+        }
+    };
+</script>
 </head>
 <body class="text-gray-800 h-[100dvh] flex overflow-hidden transition-colors duration-300" id="app-body">
 
@@ -460,6 +497,10 @@
             </div>
         </div>
         <div class="p-4 border-t border-gray-100 flex flex-col gap-3 shrink-0">
+            <button onclick="triggerTestNotification()" class="w-full py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-xs font-semibold flex items-center justify-center lg:justify-start gap-2 transition-colors" title="Probar notificación en 5 segundos">
+                <i class="ph-bold ph-bell-ringing text-base shrink-0"></i>
+                <span class="hidden lg:inline">Probar Notificación (5s)</span>
+            </button>
             <div class="flex items-center justify-between">
                 <div class="flex items-center justify-center lg:justify-start min-w-0">
                     <div class="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold shrink-0">
@@ -506,6 +547,9 @@
                 </span>
             </div>
             <div class="flex items-center gap-1.5">
+                <button onclick="triggerTestNotification()" class="p-1.5 text-teal-600 hover:bg-teal-50 bg-teal-50/70 border border-teal-200 rounded-lg" title="Probar notificación en 5s">
+                    <i class="ph-bold ph-bell-ringing text-sm"></i>
+                </button>
                 <button onclick="setViewportMode('desktop')" id="btn-exit-mobile" class="hidden px-2 py-1 bg-gray-800 text-white text-[11px] font-semibold rounded-lg items-center gap-1" title="Volver a vista escritorio">
                     <i class="ph ph-desktop text-sm"></i> PC
                 </button>
@@ -1616,6 +1660,7 @@
                     allMessages.push({ id: doc.id, ...doc.data() });
                 });
                 renderUI();
+                if (window.syncNativeNotifications) window.syncNativeNotifications(allMessages);
                 saveToLocalCache();
 
                 if (!initialMessagesLoaded) {
