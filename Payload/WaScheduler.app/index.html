@@ -351,10 +351,125 @@
         }
     </style>
 <script>
-        // Puente Nativo iOS WKWebView: abre WhatsApp nativo o Safari externo para enlaces wa.me
+        // Configuración de Apps de WhatsApp habilitadas (Normal, Business o Ambos)
+        window.getWaSettings = function() {
+            var normal = localStorage.getItem('wascheduler_en_normal');
+            var business = localStorage.getItem('wascheduler_en_business');
+            if (normal === null && business === null) {
+                return { normal: true, business: false };
+            }
+            return {
+                normal: normal === 'true',
+                business: business === 'true'
+            };
+        };
+
+        window.getWaMode = function() {
+            var s = window.getWaSettings();
+            if (s.normal && s.business) return 'both';
+            if (s.business) return 'whatsapp-smb';
+            return 'whatsapp';
+        };
+
+        window.toggleWaAppSetting = function(type) {
+            var s = window.getWaSettings();
+            if (type === 'normal') {
+                if (s.normal && !s.business) {
+                    if (typeof showToast === 'function') showToast('Debe quedar al menos una app activa', 'info');
+                    window.syncWaSettingsUI();
+                    return;
+                }
+                s.normal = !s.normal;
+            } else if (type === 'business') {
+                if (s.business && !s.normal) {
+                    if (typeof showToast === 'function') showToast('Debe quedar al menos una app activa', 'info');
+                    window.syncWaSettingsUI();
+                    return;
+                }
+                s.business = !s.business;
+            }
+            localStorage.setItem('wascheduler_en_normal', s.normal ? 'true' : 'false');
+            localStorage.setItem('wascheduler_en_business', s.business ? 'true' : 'false');
+            window.syncWaSettingsUI();
+
+            if (window.syncNativeNotifications && typeof allMessages !== 'undefined') {
+                window.syncNativeNotifications(allMessages);
+            }
+            if (typeof renderUI === 'function') renderUI();
+        };
+
+        window.syncWaSettingsUI = function() {
+            var s = window.getWaSettings();
+            ['desk', 'modal'].forEach(function(prefix) {
+                var chkN = document.getElementById(prefix + '-chk-wa-normal');
+                var chkB = document.getElementById(prefix + '-chk-wa-business');
+                if (chkN) chkN.checked = s.normal;
+                if (chkB) chkB.checked = s.business;
+            });
+            var badgeMob = document.getElementById('mob-wa-mode-label');
+            if (badgeMob) {
+                if (s.normal && s.business) badgeMob.textContent = 'Ambos';
+                else if (s.business) badgeMob.textContent = 'Business';
+                else badgeMob.textContent = 'Normal';
+            }
+        };
+
+        window.openWaConfigModal = function() {
+            window.syncWaSettingsUI();
+            var m = document.getElementById('wa-config-modal');
+            if (m) m.classList.replace('hidden', 'flex');
+        };
+
+        window.closeWaConfigModal = function() {
+            var m = document.getElementById('wa-config-modal');
+            if (m) m.classList.replace('flex', 'hidden');
+        };
+
+        window._pendingWaChoice = null;
+        window.handleSendClick = function(e, phone, encodedText) {
+            if (e) e.preventDefault();
+            var text = decodeURIComponent(encodedText || '');
+            var cleanPhone = (phone || '').replace(/[^\d]/g, '');
+            var mode = window.getWaMode();
+
+            if (mode === 'both') {
+                window._pendingWaChoice = { phone: cleanPhone, text: text };
+                var m = document.getElementById('wa-choose-app-modal');
+                if (m) m.classList.replace('hidden', 'flex');
+                return false;
+            }
+            window.launchWhatsAppDirect(mode, cleanPhone, text);
+            return false;
+        };
+
+        window.confirmWaChoice = function(scheme) {
+            var m = document.getElementById('wa-choose-app-modal');
+            if (m) m.classList.replace('flex', 'hidden');
+            if (window._pendingWaChoice) {
+                window.launchWhatsAppDirect(scheme, window._pendingWaChoice.phone, window._pendingWaChoice.text);
+                window._pendingWaChoice = null;
+            }
+        };
+
+        window.launchWhatsAppDirect = function(scheme, cleanPhone, text) {
+            var isIOSWebView = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.openExternal);
+            if (isIOSWebView) {
+                var nativeUrl = cleanPhone
+                    ? scheme + '://send?phone=' + cleanPhone + '&text=' + encodeURIComponent(text)
+                    : scheme + '://send?text=' + encodeURIComponent(text);
+                window.webkit.messageHandlers.openExternal.postMessage(nativeUrl);
+            } else {
+                var webUrl = cleanPhone
+                    ? 'https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(text)
+                    : 'https://web.whatsapp.com/send?text=' + encodeURIComponent(text);
+                window.open(webUrl, '_blank');
+            }
+        };
+
+        // Puente Nativo iOS WKWebView para otros enlaces externos
         document.addEventListener('click', function(e) {
             var anchor = e.target.closest('a');
-            if (anchor && anchor.href) {
+            if (anchor && anchor.href && !anchor.hasAttribute('data-wa-send')) {
                 var url = anchor.href;
                 if (url.indexOf('wa.me') !== -1 || url.indexOf('whatsapp.com') !== -1 || anchor.target === '_blank') {
                     e.preventDefault();
@@ -366,44 +481,45 @@
                 }
             }
         }, true);
-    </script>
-<script>
-    // Puente de notificaciones nativas iOS con enlace directo a WhatsApp
-    window.syncNativeNotifications = function(messages) {
-        if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.scheduleNotification) return;
-        
-        messages.forEach(function(msg) {
-            if (msg.status === 'pending') {
-                var phoneMatch = (msg.recipient || '').match(/[\+\d\s-]{8,}/);
-                var purePhone = phoneMatch ? phoneMatch[0].replace(/[^\d]/g, '') : '';
-                var waUrl = purePhone 
-                    ? 'whatsapp://send?phone=' + purePhone + '&text=' + encodeURIComponent(msg.text || '')
-                    : 'whatsapp://send?text=' + encodeURIComponent(msg.text || '');
 
-                window.webkit.messageHandlers.scheduleNotification.postMessage({
-                    id: msg.id,
-                    title: '⏰ Envío pendiente: ' + (msg.name || 'WaScheduler'),
-                    body: 'Para ' + msg.recipient + ': ' + msg.text,
-                    date: msg.date,
-                    time: msg.time,
-                    waUrl: waUrl
-                });
-            } else if (window.webkit.messageHandlers.cancelNotification) {
-                window.webkit.messageHandlers.cancelNotification.postMessage(msg.id);
+        // Puente de notificaciones nativas iOS
+        window.syncNativeNotifications = function(messages) {
+            if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.scheduleNotification) return;
+            var mode = window.getWaMode();
+
+            messages.forEach(function(msg) {
+                if (msg.status === 'pending') {
+                    var phoneMatch = (msg.recipient || '').match(/[\+\d\s-]{8,}/);
+                    var cleanPhone = phoneMatch ? phoneMatch[0].replace(/[^\d]/g, '') : '';
+                    var waQuery = cleanPhone
+                        ? 'phone=' + cleanPhone + '&text=' + encodeURIComponent(msg.text || '')
+                        : 'text=' + encodeURIComponent(msg.text || '');
+
+                    window.webkit.messageHandlers.scheduleNotification.postMessage({
+                        id: msg.id,
+                        title: '⏰ Envío pendiente: ' + (msg.name || 'WaScheduler'),
+                        body: 'Para ' + msg.recipient + ': ' + msg.text,
+                        date: msg.date,
+                        time: msg.time,
+                        waMode: mode,
+                        waQuery: waQuery
+                    });
+                } else if (window.webkit.messageHandlers.cancelNotification) {
+                    window.webkit.messageHandlers.cancelNotification.postMessage(msg.id);
+                }
+            });
+        };
+
+        // Disparar notificación de prueba en 5 segundos
+        window.triggerTestNotification = function() {
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.testNotification) {
+                window.webkit.messageHandlers.testNotification.postMessage(window.getWaMode());
+                alert('Notificación programada en 5 segundos. Puedes cerrar la app por completo para probar.');
+            } else {
+                alert('Esta prueba funciona únicamente dentro de la app instalada en iOS.');
             }
-        });
-    };
-
-    // Disparar notificación de prueba en 5 segundos
-    window.triggerTestNotification = function() {
-        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.testNotification) {
-            window.webkit.messageHandlers.testNotification.postMessage('test');
-            alert('Notificación programada en 5 segundos. Bloquea la pantalla o sal al inicio para probarla.');
-        } else {
-            alert('Esta prueba funciona únicamente dentro de la app instalada en iOS.');
-        }
-    };
-</script>
+        };
+    </script>
 </head>
 <body class="text-gray-800 h-[100dvh] flex overflow-hidden transition-colors duration-300" id="app-body">
 
@@ -496,7 +612,18 @@
                 </div>
             </div>
         </div>
-        <div class="p-4 border-t border-gray-100 flex flex-col gap-3 shrink-0">
+        <div class="p-4 border-t border-gray-100 flex flex-col gap-2.5 shrink-0">
+            <div class="hidden lg:flex flex-col gap-1.5 bg-gray-50 p-2.5 rounded-xl border border-gray-200/80">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Apps de Envío Activas</span>
+                <label class="flex items-center justify-between cursor-pointer py-0.5">
+                    <span class="text-xs font-medium text-gray-700 flex items-center gap-1.5"><i class="ph-fill ph-whatsapp-logo text-[#25D366] text-base"></i> WhatsApp Normal</span>
+                    <input type="checkbox" id="desk-chk-wa-normal" onchange="toggleWaAppSetting('normal')" class="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer py-0.5">
+                    <span class="text-xs font-medium text-gray-700 flex items-center gap-1.5"><i class="ph-fill ph-briefcase text-teal-700 text-base"></i> WA Business</span>
+                    <input type="checkbox" id="desk-chk-wa-business" onchange="toggleWaAppSetting('business')" class="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
+                </label>
+            </div>
             <button onclick="triggerTestNotification()" class="w-full py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-xs font-semibold flex items-center justify-center lg:justify-start gap-2 transition-colors" title="Probar notificación en 5 segundos">
                 <i class="ph-bold ph-bell-ringing text-base shrink-0"></i>
                 <span class="hidden lg:inline">Probar Notificación (5s)</span>
@@ -546,7 +673,11 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Caché
                 </span>
             </div>
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1">
+                <button onclick="openWaConfigModal()" class="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg text-[10px] font-bold flex items-center gap-1" title="Configurar WhatsApp Normal / Business">
+                    <i class="ph-bold ph-gear text-xs"></i>
+                    <span id="mob-wa-mode-label">Normal</span>
+                </button>
                 <button onclick="triggerTestNotification()" class="p-1.5 text-teal-600 hover:bg-teal-50 bg-teal-50/70 border border-teal-200 rounded-lg" title="Probar notificación en 5s">
                     <i class="ph-bold ph-bell-ringing text-sm"></i>
                 </button>
@@ -1041,6 +1172,53 @@
             <div class="p-5 overflow-y-auto flex-1 custom-scrollbar space-y-3" id="recipients-list-container"></div>
             <div class="p-4 border-t border-gray-100 shrink-0">
                 <button onclick="document.getElementById('recipients-modal').classList.replace('flex','hidden')" class="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configurar Apps de WhatsApp -->
+    <div id="wa-config-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <i class="ph-fill ph-whatsapp-logo text-teal-600 text-xl"></i> Apps de Envío
+                </h3>
+                <button onclick="closeWaConfigModal()" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-lg"></i></button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">Activa una para abrirla directo sin preguntar, o activa ambas para elegir al enviar.</p>
+            <div class="space-y-2.5 mb-5">
+                <label class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer">
+                    <span class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <i class="ph-fill ph-whatsapp-logo text-[#25D366] text-xl"></i> WhatsApp Normal
+                    </span>
+                    <input type="checkbox" id="modal-chk-wa-normal" onchange="toggleWaAppSetting('normal')" class="w-5 h-5 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
+                </label>
+                <label class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer">
+                    <span class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <i class="ph-fill ph-briefcase text-teal-700 text-xl"></i> WhatsApp Business
+                    </span>
+                    <input type="checkbox" id="modal-chk-wa-business" onchange="toggleWaAppSetting('business')" class="w-5 h-5 text-teal-600 rounded border-gray-300 focus:ring-teal-500">
+                </label>
+            </div>
+            <button onclick="closeWaConfigModal()" class="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition-colors">Listo</button>
+        </div>
+    </div>
+
+    <!-- Modal Elegir App (cuando ambas están activas) -->
+    <div id="wa-choose-app-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden p-5">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-base font-bold text-gray-900">¿Con cuál app enviar?</h3>
+                <button onclick="document.getElementById('wa-choose-app-modal').classList.replace('flex','hidden')" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-lg"></i></button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">Tienes ambas aplicaciones habilitadas.</p>
+            <div class="space-y-2.5">
+                <button onclick="confirmWaChoice('whatsapp')" class="w-full py-3 px-4 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold rounded-xl flex items-center justify-center gap-2 text-sm shadow-sm transition-colors">
+                    <i class="ph-fill ph-whatsapp-logo text-xl"></i> WhatsApp Normal
+                </button>
+                <button onclick="confirmWaChoice('whatsapp-smb')" class="w-full py-3 px-4 bg-teal-700 hover:bg-teal-800 text-white font-semibold rounded-xl flex items-center justify-center gap-2 text-sm shadow-sm transition-colors">
+                    <i class="ph-fill ph-briefcase text-xl"></i> WhatsApp Business
+                </button>
             </div>
         </div>
     </div>
@@ -2663,7 +2841,7 @@
 
                 const mobileFooterActions = isPending
                     ? `<div class="mt-2 pt-1.5 border-t border-gray-200/60 grid grid-cols-3 gap-1">
-                           <a href="${waLink}" target="_blank" class="py-1 px-1.5 bg-[#25D366] hover:bg-[#128C7E] text-white text-[10px] font-semibold rounded-md flex items-center justify-center gap-1 transition-colors shadow-sm">
+                           <a href="${waLink}" data-wa-send="1" onclick="return handleSendClick(event, '${purePhone}', '${encodeURIComponent(msg.text)}')" class="py-1 px-1.5 bg-[#25D366] hover:bg-[#128C7E] text-white text-[10px] font-semibold rounded-md flex items-center justify-center gap-1 transition-colors shadow-sm">
                                <i class="ph-bold ph-whatsapp-logo text-xs"></i> Enviar
                            </a>
                            <button onclick="markAsSent('${msg.id}')" class="py-1 px-1.5 bg-green-600 hover:bg-green-700 text-white text-[10px] font-semibold rounded-md flex items-center justify-center gap-1 transition-colors shadow-sm">
@@ -2719,7 +2897,7 @@
 
             const actions = isPending ? `
                 <div class="mt-3 pt-2.5 border-t border-gray-200/60 grid grid-cols-2 sm:flex gap-1.5 md:gap-2 flex-wrap">
-                    <a href="${waLink}" target="_blank" class="col-span-1 sm:flex-1 sm:min-w-[100px] py-1.5 md:py-2 px-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white text-xs md:text-sm font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm">
+                    <a href="${waLink}" data-wa-send="1" onclick="return handleSendClick(event, '${purePhone}', '${encodeURIComponent(msg.text)}')" class="col-span-1 sm:flex-1 sm:min-w-[100px] py-1.5 md:py-2 px-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white text-xs md:text-sm font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm">
                         <i class="ph ph-whatsapp-logo text-base md:text-lg"></i> Enviar
                     </a>
                     <button onclick="markAsSent('${msg.id}')" class="col-span-1 sm:flex-1 sm:min-w-[85px] py-1.5 md:py-2 px-2.5 bg-green-600 hover:bg-green-700 text-white text-xs md:text-sm font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm">
@@ -3263,6 +3441,7 @@
         });
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (window.syncWaSettingsUI) window.syncWaSettingsUI();
             switchView('pending'); 
             
             const today = new Date();
