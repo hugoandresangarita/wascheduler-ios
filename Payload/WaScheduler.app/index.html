@@ -8,7 +8,6 @@
     <script>
         // Purga automática de Service Workers y cachés antiguas en Safari iOS
         (function() {
-            var needsReload = false;
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
                     if (registrations && registrations.length > 0) {
@@ -183,6 +182,31 @@
         .-mt-3 { margin-top: -0.75rem; }
         .border-l-4 { border-left-width: 4px; }
         .border-l-green-500 { border-left-color: #10b981; }
+
+        /* Fix 1: Separación clara entre la lupa y el texto de búsqueda en Campañas */
+        #campaign-search {
+            padding-left: 2.75rem !important;
+        }
+
+        .message-editor-box {
+            border-radius: 0.5rem;
+        }
+        .message-editor-box textarea {
+            display: block;
+            width: 100%;
+            min-height: 8.5rem;
+            padding: 0.75rem 1rem !important;
+            background-color: #f9fafb !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 0.5rem !important;
+            resize: vertical;
+        }
+        .message-editor-box textarea:focus {
+            background-color: #f0fdf4 !important;
+            border-color: #22c55e !important;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2) !important;
+            outline: none !important;
+        }
     </style>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
@@ -197,20 +221,10 @@
             -webkit-tap-highlight-color: transparent;
         }
         
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1; 
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #c1c1c1; 
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8; 
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
 
         .safe-top-header {
             padding-top: env(safe-area-inset-top);
@@ -228,12 +242,8 @@
             from { opacity: 1; }
             to { opacity: 0; }
         }
-        .toast-enter {
-            animation: slideInUp 0.3s ease-out forwards;
-        }
-        .toast-exit {
-            animation: fadeOut 0.3s ease-out forwards;
-        }
+        .toast-enter { animation: slideInUp 0.3s ease-out forwards; }
+        .toast-exit { animation: fadeOut 0.3s ease-out forwards; }
 
         .mobile-sim #stats-grid {
             grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
@@ -253,13 +263,8 @@
             margin-right: 0 !important;
             margin-bottom: 0.15rem !important;
         }
-        .mobile-sim .stat-icon-box i {
-            font-size: 0.7rem !important;
-        }
-        .mobile-sim .stat-val {
-            font-size: 0.85rem !important;
-            line-height: 1 !important;
-        }
+        .mobile-sim .stat-icon-box i { font-size: 0.7rem !important; }
+        .mobile-sim .stat-val { font-size: 0.85rem !important; line-height: 1 !important; }
         .mobile-sim #stats-grid p:last-child {
             font-size: 7.5px !important;
             letter-spacing: -0.02em !important;
@@ -293,7 +298,7 @@
         .mobile-sim #contact-search {
             padding-top: 0.25rem !important;
             padding-bottom: 0.25rem !important;
-            padding-left: 1.5rem !important;
+            padding-left: 2rem !important;
             font-size: 10.5px !important;
             border-radius: 0.5rem !important;
         }
@@ -340,9 +345,7 @@
             height: 1.35rem !important;
             font-size: 9px !important;
         }
-        .mobile-sim #view-new > div {
-            padding: 0.6rem !important;
-        }
+        .mobile-sim #view-new > div { padding: 0.6rem !important; }
         .mobile-sim #view-new input,
         .mobile-sim #view-new select,
         .mobile-sim #view-new textarea {
@@ -350,7 +353,7 @@
             font-size: 11px !important;
         }
     </style>
-<script>
+    <script>
         // Configuración de Apps de WhatsApp habilitadas (Normal, Business o Ambos)
         window.getWaSettings = function() {
             var normal = localStorage.getItem('wascheduler_en_normal');
@@ -373,7 +376,7 @@
 
         window.getReminderIntervalHours = function() {
             var val = localStorage.getItem('wascheduler_reminder_hours');
-            if (val === null) return 2; // Por defecto cada 2 horas
+            if (val === null) return 2;
             return parseInt(val, 10);
         };
 
@@ -494,7 +497,6 @@
             }
         };
 
-        // Puente Nativo iOS WKWebView para otros enlaces externos
         document.addEventListener('click', function(e) {
             var anchor = e.target.closest('a');
             if (anchor && anchor.href && !anchor.hasAttribute('data-wa-send')) {
@@ -510,7 +512,6 @@
             }
         }, true);
 
-        // Puente de notificaciones nativas iOS (Notificación 1 -> WhatsApp | Recordatorios cada Xh -> App)
         window.syncNativeNotifications = function(messages) {
             if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.syncAllNotifications) return;
             var mode = window.getWaMode();
@@ -544,7 +545,6 @@
             });
         };
 
-        // Háptica nativa y badge del ícono iOS
         window.triggerNativeHaptic = function(style) {
             if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.triggerHaptic) {
                 window.webkit.messageHandlers.triggerHaptic.postMessage(style || 'light');
@@ -557,7 +557,6 @@
             }
         };
 
-        // Reemplazo de variable {nombre} en mensajes masivos
         window.personalizeMessageText = function(text, recipientStr) {
             if (!text || text.indexOf('{nombre}') === -1) return text;
             var rawName = (recipientStr || '').split('|')[0].trim();
@@ -566,11 +565,16 @@
             return text.replace(/\{nombre\}/gi, firstName);
         };
 
-        // Gestión de Plantillas Rápidas
+        // Gestión de Plantillas Rápidas (soporta destino 'new' o 'edit')
+        window._templateTargetTextareaId = 'msg-text';
+
         window.getSavedTemplates = function() {
             try {
-                var saved = JSON.parse(localStorage.getItem('wascheduler_templates') || 'null');
-                if (Array.isArray(saved) && saved.length > 0) return saved;
+                var raw = localStorage.getItem('wascheduler_templates');
+                if (raw !== null) {
+                    var saved = JSON.parse(raw);
+                    if (Array.isArray(saved)) return saved;
+                }
             } catch (e) {}
             return [
                 { title: 'Recordatorio de Pago', text: 'Hola {nombre}, te recordamos amablemente que tienes un pago pendiente programado para hoy. ¡Gracias!' },
@@ -579,7 +583,8 @@
             ];
         };
 
-        window.openTemplatesModal = function() {
+        window.openTemplatesModal = function(targetTextareaId) {
+            window._templateTargetTextareaId = targetTextareaId || 'msg-text';
             window.renderTemplatesList();
             var m = document.getElementById('templates-modal');
             if (m) m.classList.replace('hidden', 'flex');
@@ -594,6 +599,10 @@
             var container = document.getElementById('templates-list-container');
             if (!container) return;
             var list = window.getSavedTemplates();
+            if (list.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-400 text-xs"><i class="ph ph-bookmarks-simple text-3xl mb-1.5 opacity-50 block"></i>No tienes plantillas guardadas.<br>Escribe un mensaje arriba y pulsa <strong>Guardar actual</strong>.</div>';
+                return;
+            }
             container.innerHTML = list.map(function(tpl, idx) {
                 return '<div class="p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-col gap-1.5">' +
                     '<div class="flex items-center justify-between gap-2">' +
@@ -611,15 +620,24 @@
         window.applyTemplate = function(idx) {
             var list = window.getSavedTemplates();
             if (list[idx]) {
-                var ta = document.getElementById('msg-text');
-                if (ta) ta.value = list[idx].text;
+                var ta = document.getElementById(window._templateTargetTextareaId || 'msg-text');
+                if (ta) {
+                    var currentVal = ta.value;
+                    if (currentVal && currentVal.trim().length > 0) {
+                        var separator = currentVal.endsWith('\n') ? '' : '\n';
+                        ta.value = currentVal + separator + list[idx].text;
+                    } else {
+                        ta.value = list[idx].text;
+                    }
+                    ta.focus();
+                }
                 window.triggerNativeHaptic('light');
                 window.closeTemplatesModal();
             }
         };
 
         window.saveCurrentAsTemplate = function() {
-            var textEl = document.getElementById('msg-text');
+            var textEl = document.getElementById(window._templateTargetTextareaId || 'msg-text') || document.getElementById('msg-text');
             var text = textEl ? textEl.value.trim() : '';
             if (!text) {
                 if (typeof showToast === 'function') showToast('Escribe un mensaje primero para guardarlo como plantilla', 'info');
@@ -630,19 +648,20 @@
             var list = window.getSavedTemplates();
             list.unshift({ title: title, text: text });
             localStorage.setItem('wascheduler_templates', JSON.stringify(list));
+            if (typeof window.syncTemplatesToCloud === 'function') window.syncTemplatesToCloud(list);
             if (titleInput) titleInput.value = '';
             window.renderTemplatesList();
-            if (typeof showToast === 'function') showToast('Plantilla guardada');
+            if (typeof showToast === 'function') showToast('Plantilla guardada y sincronizada');
         };
 
         window.deleteTemplate = function(idx) {
             var list = window.getSavedTemplates();
             list.splice(idx, 1);
             localStorage.setItem('wascheduler_templates', JSON.stringify(list));
+            if (typeof window.syncTemplatesToCloud === 'function') window.syncTemplatesToCloud(list);
             window.renderTemplatesList();
         };
 
-        // Disparar prueba: Notificación 1 en 5s (abre WhatsApp) y Notificación 2 en 15s (abre la App)
         window.triggerTestNotification = function() {
             if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.testNotification) {
                 window.webkit.messageHandlers.testNotification.postMessage(window.getWaMode());
@@ -889,8 +908,8 @@
                      <!-- Search & Filter -->
                      <div id="campaigns-search-row" class="flex gap-1 md:gap-4 mb-1.5 md:mb-4 shrink-0 relative">
                          <div class="flex-1 relative">
-                              <i class="ph ph-magnifying-glass absolute left-2 md:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs md:text-lg"></i>
-                              <input type="text" id="campaign-search" placeholder="Buscar campaña o contacto..." class="w-full pl-6 md:pl-11 pr-2 py-1 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg md:rounded-xl text-base md:text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all">
+                              <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm md:text-lg pointer-events-none"></i>
+                              <input type="text" id="campaign-search" placeholder="Buscar campaña o contacto..." class="w-full pl-10 md:pl-11 pr-3 py-1.5 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg md:rounded-xl text-base md:text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all">
                          </div>
                          <div class="relative">
                              <button onclick="toggleCampaignFilter()" id="btn-campaign-filter" class="px-2 py-1 md:px-4 md:py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg md:rounded-xl text-[11px] md:text-sm font-medium flex items-center gap-1 transition-colors h-full">
@@ -1000,7 +1019,6 @@
                                     <i class="ph ph-copy text-base md:text-lg"></i>
                                 </button>
                             </div>
-                            <!-- Lista desplegable visual sobre el teclado -->
                             <div id="custom-contacts-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-52 overflow-y-auto custom-scrollbar divide-y divide-gray-100"></div>
                             <div id="selected-recipients-container" class="flex flex-wrap gap-1.5 mt-2"></div>
                         </div>
@@ -1012,18 +1030,20 @@
                             </div>
                             <div>
                                 <label class="block text-xs md:text-sm font-medium text-gray-700 mb-1">Hora</label>
-                                <input type="time" id="msg-time" required class="w-full px-2 py-2 md:px-4 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" />
+                                <input type="time" id="msg-time" required value="08:00" class="w-full px-2 py-2 md:px-4 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" />
                             </div>
                         </div>
 
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <label class="block text-xs md:text-sm font-medium text-gray-700">Mensaje</label>
-                                <button type="button" onclick="openTemplatesModal()" class="px-2 py-0.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors">
+                                <button type="button" onclick="openTemplatesModal('msg-text')" class="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors">
                                     <i class="ph-bold ph-bookmarks-simple"></i> Plantillas
                                 </button>
                             </div>
-                            <textarea id="msg-text" required rows="3" placeholder="Escribe el mensaje aquí..." class="w-full px-3 py-2 md:px-4 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-base md:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all resize-none"></textarea>
+                            <div id="new-msg-box" class="message-editor-box">
+                                <textarea id="msg-text" required placeholder="Escribe aquí el mensaje..."></textarea>
+                            </div>
                         </div>
 
                         <div class="border-t border-gray-100 pt-2.5 md:pt-3">
@@ -1153,7 +1173,7 @@
                     <!-- Filters -->
                     <div id="history-filters-row" class="flex flex-col md:flex-row gap-1 md:gap-4 mb-1.5 md:mb-6 shrink-0 border-b border-gray-100 pb-1.5 md:pb-6 items-center flex-wrap">
                         <div class="w-full md:flex-1 md:min-w-[200px] relative">
-                            <i class="ph ph-magnifying-glass absolute left-2 md:left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs md:text-lg"></i>
+                            <i class="ph ph-magnifying-glass absolute left-2 md:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs md:text-lg"></i>
                             <input type="text" id="history-search" placeholder="Buscar por nombre o contacto..." class="w-full pl-6 md:pl-9 pr-2 py-1 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-base md:text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all" autocomplete="off">
                         </div>
                         <div id="history-filters-grid" class="w-full md:w-auto grid grid-cols-3 md:flex items-center gap-1 md:gap-2">
@@ -1266,31 +1286,55 @@
 
     <!-- Modals -->
 
-    <!-- Edit Modal -->
-    <div id="edit-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
-            <div class="p-6 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
+    <!-- Edit Modal (Mensaje individual o Campaña Completa) -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden items-center justify-center p-2 sm:p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col" style="max-height: 90vh; max-height: 90dvh;">
+            <div class="px-5 py-3.5 md:px-6 md:py-4 border-b border-gray-100 shrink-0 flex items-center justify-between bg-white">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
                         <i class="ph ph-pencil-simple text-xl"></i>
                     </div>
-                    <h3 class="text-lg font-bold text-gray-900">Editar Mensaje</h3>
+                    <div>
+                        <h3 id="edit-modal-title" class="text-lg font-bold text-gray-900">Editar Mensaje</h3>
+                        <p id="edit-modal-subtitle" class="hidden text-xs text-purple-700 font-medium">Edición completa de campaña: destinatarios, repetición y fecha de fin</p>
+                    </div>
                 </div>
                 <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 transition-colors"><i class="ph ph-x text-xl"></i></button>
             </div>
-            <div class="p-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+            <div class="p-4 md:p-6 overflow-y-auto flex-1 min-h-0 space-y-3.5 custom-scrollbar">
                 <input type="hidden" id="edit-msg-id">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de la Campaña</label>
                     <input type="text" id="edit-msg-name" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none">
                 </div>
-                <div>
+
+                <!-- Destinatario simple (para mensaje individual) -->
+                <div id="edit-single-recipient-wrap">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Destinatario</label>
                     <input type="text" id="edit-msg-recipient" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none">
                 </div>
+
+                <!-- Destinatarios múltiples (para campaña completa) -->
+                <div id="edit-campaign-recipients-wrap" class="hidden relative">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Destinatarios de la Campaña (Agrega uno o varios)</label>
+                    <div class="flex gap-2 relative">
+                        <div class="flex-1 relative">
+                            <input type="text" id="edit-recipient-input" placeholder="Busca contacto o escribe número..." class="w-full pl-3.5 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none" autocomplete="off">
+                            <button type="button" onclick="toggleEditContactsDropdown()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-600 p-1" title="Ver lista de contactos">
+                                <i class="ph-bold ph-caret-down text-sm"></i>
+                            </button>
+                        </div>
+                        <button type="button" onclick="addEditRecipientToList()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center gap-1 shrink-0 shadow-sm">
+                            <i class="ph ph-plus-bold"></i> Agregar
+                        </button>
+                    </div>
+                    <div id="edit-custom-contacts-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar divide-y divide-gray-100"></div>
+                    <div id="edit-selected-recipients-container" class="flex flex-wrap gap-1.5 mt-2"></div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                        <label id="edit-date-label" class="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
                         <input type="date" id="edit-msg-date" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none">
                     </div>
                     <div>
@@ -1298,12 +1342,80 @@
                         <input type="time" id="edit-msg-time" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none">
                     </div>
                 </div>
+
+                <!-- Opciones completas de repetición y fecha de fin (para campaña completa) -->
+                <div id="edit-recurrence-section" class="hidden border-t border-gray-100 pt-3 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="edit-msg-recurring" class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500" onchange="document.getElementById('edit-recurrence-options').classList.toggle('hidden', !this.checked); if(window.handleEditFrequencyChange) window.handleEditFrequencyChange();">
+                        <label for="edit-msg-recurring" class="text-sm font-medium text-gray-700">Repetir mensaje automáticamente</label>
+                    </div>
+                    <div id="edit-recurrence-options" class="hidden space-y-3 bg-gray-50 border border-gray-200 rounded-xl p-3.5">
+                        <div class="flex items-center justify-between gap-2 pb-2.5 border-b border-gray-200/70">
+                            <span class="text-sm font-semibold text-gray-700">Repetir</span>
+                            <select id="edit-msg-frequency" onchange="handleEditFrequencyChange()" class="px-3 py-1.5 bg-purple-50 border border-purple-400 text-gray-800 font-semibold rounded-xl text-sm outline-none cursor-pointer">
+                                <option value="daily">Diariamente</option>
+                                <option value="weekly">Semanalmente</option>
+                                <option value="monthly">Mensualmente</option>
+                                <option value="yearly">Anualmente</option>
+                            </select>
+                        </div>
+
+                        <div id="edit-weekly-days-panel" class="hidden space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-gray-800">Selecciona tus días</span>
+                                <button type="button" onclick="toggleAllEditWeeklyDays()" class="text-[11px] font-semibold text-purple-600 hover:underline">Todos / Limpiar</button>
+                            </div>
+                            <div id="edit-weekly-days-grid" class="grid grid-cols-7 gap-1.5">
+                                <button type="button" data-eday="1" onclick="toggleEditWeeklyDay(1)" class="edit-weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm">Lun</button>
+                                <button type="button" data-eday="2" onclick="toggleEditWeeklyDay(2)" class="edit-weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm">Mar</button>
+                                <button type="button" data-eday="3" onclick="toggleEditWeeklyDay(3)" class="edit-weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm">Mié</button>
+                                <button type="button" data-eday="4" onclick="toggleEditWeeklyDay(4)" class="edit-weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm">Jue</button>
+                                <button type="button" data-eday="5" onclick="toggleEditWeeklyDay(5)" class="edit-weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm">Vie</button>
+                                <button type="button" data-eday="6" onclick="toggleEditWeeklyDay(6)" class="edit-weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm">Sáb</button>
+                                <button type="button" data-eday="0" onclick="toggleEditWeeklyDay(0)" class="edit-weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm">Dom</button>
+                            </div>
+                        </div>
+
+                        <div id="edit-monthly-days-panel" class="hidden space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-gray-800">Selecciona tus días</span>
+                                <button type="button" onclick="clearEditMonthlyDays()" class="text-[11px] font-semibold text-purple-600 hover:underline">Limpiar</button>
+                            </div>
+                            <div id="edit-monthly-days-grid" class="grid grid-cols-7 sm:grid-cols-9 gap-1.5"></div>
+                        </div>
+
+                        <div id="edit-yearly-years-panel" class="hidden flex items-center justify-between gap-3">
+                            <div>
+                                <span class="block text-xs font-bold text-gray-800">Duración (años)</span>
+                                <span id="edit-yearly-years-hint" class="text-[11px] text-gray-500">1 envío anual</span>
+                            </div>
+                            <div class="flex items-center bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                                <button type="button" id="btn-edit-yearly-minus" onclick="changeEditYearlyCount(-1)" class="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-100 font-bold text-base">−</button>
+                                <span id="edit-yearly-count-display" class="min-w-[2.5rem] text-center text-sm font-bold text-gray-900 select-none">1</span>
+                                <button type="button" id="btn-edit-yearly-plus" onclick="changeEditYearlyCount(1)" class="w-9 h-9 flex items-center justify-center text-purple-600 hover:bg-purple-50 font-bold text-base">+</button>
+                            </div>
+                        </div>
+
+                        <div id="edit-end-date-container">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Fecha de finalización</label>
+                            <input type="date" id="edit-msg-end-date" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Mensaje</label>
-                    <textarea id="edit-msg-text" rows="5" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none resize-none"></textarea>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-sm font-medium text-gray-700">Mensaje</label>
+                        <button type="button" onclick="openTemplatesModal('edit-msg-text')" class="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors">
+                            <i class="ph-bold ph-bookmarks-simple"></i> Plantillas
+                        </button>
+                    </div>
+                    <div id="edit-msg-box" class="message-editor-box">
+                        <textarea id="edit-msg-text" placeholder="Escribe el mensaje aquí..."></textarea>
+                    </div>
                 </div>
             </div>
-            <div class="p-6 border-t border-gray-100 flex-shrink-0 flex gap-3">
+            <div class="px-5 py-3.5 md:px-6 md:py-4 border-t border-gray-100 shrink-0 flex gap-3 bg-white">
                 <button onclick="closeEditModal()" class="flex-1 py-2.5 px-4 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors">Cancelar</button>
                 <button id="edit-save-btn" class="flex-1 py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors shadow-sm shadow-purple-600/20 flex items-center justify-center gap-2">
                     <i class="ph ph-floppy-disk"></i> Guardar Cambios
@@ -1355,7 +1467,7 @@
             </div>
             
             <div class="p-4 bg-white flex flex-col gap-3 shrink-0">
-                <button onclick="closeCampaignPreviewModal()" class="w-full py-3 px-4 bg-[#2aa1af] hover:bg-[#238c99] text-white font-medium rounded-xl transition-colors">Entendido</button>
+                <button onclick="closeCampaignPreviewModal()" class="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl transition-colors">Entendido</button>
                 <button id="btn-edit-future" class="w-full py-3 px-4 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition-colors flex items-center justify-center gap-2">
                     <i class="ph ph-pencil-simple text-lg"></i> Editar próximos mensajes
                 </button>
@@ -1443,7 +1555,7 @@
     </div>
 
     <!-- Modal Plantillas Rápidas -->
-    <div id="templates-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
+    <div id="templates-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] hidden items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
             <div class="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
                 <h3 class="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -1452,7 +1564,7 @@
                 <button onclick="closeTemplatesModal()" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-lg"></i></button>
             </div>
             <div class="p-4 bg-teal-50/50 border-b border-gray-100 shrink-0">
-                <p class="text-[11px] text-gray-600 mb-2">Guarda el texto que escribiste en el formulario como nueva plantilla:</p>
+                <p class="text-[11px] text-gray-600 mb-2">Guarda el texto que escribiste como nueva plantilla:</p>
                 <div class="flex gap-1.5">
                     <input type="text" id="new-template-title" placeholder="Nombre de la plantilla..." class="flex-1 px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs outline-none focus:border-teal-500">
                     <button type="button" onclick="saveCurrentAsTemplate()" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg shrink-0">Guardar actual</button>
@@ -1483,12 +1595,28 @@
     </div>
 
     <!-- Firebase and Logic -->
+<style>
+        /* Verde suave y agradable al tocar o enfocar tarjetas, mensajes y botones */
+        .message-editor-box:focus-within {
+            border-color: #22c55e !important;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2) !important;
+            background-color: #f0fdf4 !important;
+        }
+        #pending-list > div:active,
+        #history-list > div:active,
+        #sidebar-message-list > div:active {
+            background-color: #f0fdf4 !important;
+            border-color: #86efac !important;
+        }
+        button:active,
+        a:active {
+            outline: none;
+        }
+</style>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Service Worker desactivado para garantizar compatibilidad total con Safari iOS
+        import { getFirestore, doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'wa-scheduler-manual-app';
@@ -1509,7 +1637,6 @@
             console.error("Usando configuración local de Firebase.");
         }
 
-        // Claves de Caché Local Instantáneo
         const CACHE_KEYS = {
             UID: 'wascheduler_uid',
             EMAIL: 'wascheduler_email',
@@ -1517,7 +1644,6 @@
             CONTACTS: 'wascheduler_contacts_cache'
         };
 
-        // DOM Elements
         const form = document.getElementById('schedule-form');
         const pendingList = document.getElementById('pending-list');
         const historyList = document.getElementById('history-list');
@@ -1542,6 +1668,7 @@
         let currentUserId = localStorage.getItem(CACHE_KEYS.UID) || null;
         let unsubMessages = null;
         let unsubContacts = null;
+        let unsubTemplates = null;
         let allMessages = [];
         let allContacts = [];
         let selectedRecipients = [];
@@ -1553,7 +1680,6 @@
         let campaignMode = 'grouped';
         let isSimulatedMobile = window.innerWidth < 768;
 
-        // Variables de control de progreso de carga (1% - 100%)
         let loadingInterval = null;
         let currentProgress = 1;
         let initialMessagesLoaded = false;
@@ -1566,7 +1692,6 @@
             status: 'all'
         };
 
-        // --- CACHÉ LOCAL INSTANTÁNEO ---
         function loadFromLocalCache() {
             try {
                 const cachedUid = localStorage.getItem(CACHE_KEYS.UID);
@@ -1723,6 +1848,7 @@
                 if (loadingInterval) clearInterval(loadingInterval);
                 if (unsubMessages) { unsubMessages(); unsubMessages = null; }
                 if (unsubContacts) { unsubContacts(); unsubContacts = null; }
+                if (unsubTemplates) { unsubTemplates(); unsubTemplates = null; }
                 clearLocalCache();
                 await signOut(auth);
                 allMessages = [];
@@ -1959,7 +2085,6 @@
             }
         };
 
-        // Manejar envío del formulario de Login
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('login-email').value.trim();
@@ -1995,7 +2120,6 @@
             }
         });
 
-        // Firebase Initialization & Auth State Observer
         async function initialize() {
             const loadedCached = loadFromLocalCache();
 
@@ -2139,15 +2263,41 @@
             }
         };
 
-        // Firestore Listeners
         function setupRealtimeListener() {
             if (!currentUserId) return;
 
             if (unsubMessages) unsubMessages();
             if (unsubContacts) unsubContacts();
+            if (unsubTemplates) unsubTemplates();
 
             const messagesRef = collection(db, 'artifacts', appId, 'users', currentUserId, 'messages');
             const contactsRef = collection(db, 'artifacts', appId, 'users', currentUserId, 'contacts');
+            const templatesDocRef = doc(db, 'artifacts', appId, 'users', currentUserId, 'settings', 'templates');
+
+            window.syncTemplatesToCloud = async (list) => {
+                if (!currentUserId || !db) return;
+                try {
+                    await setDoc(templatesDocRef, { items: list, updatedAt: serverTimestamp() }, { merge: true });
+                } catch (e) {
+                    console.error("Error sincronizando plantillas en la nube:", e);
+                }
+            };
+
+            unsubTemplates = onSnapshot(templatesDocRef, (docSnap) => {
+                if (docSnap.exists() && Array.isArray(docSnap.data().items)) {
+                    localStorage.setItem('wascheduler_templates', JSON.stringify(docSnap.data().items));
+                    const tplModal = document.getElementById('templates-modal');
+                    if (tplModal && !tplModal.classList.contains('hidden')) {
+                        window.renderTemplatesList();
+                    }
+                } else if (!docSnap.exists()) {
+                    // Solo si nunca se ha creado el documento en la nube, inicializar con las locales actuales
+                    const currentLocal = window.getSavedTemplates ? window.getSavedTemplates() : [];
+                    window.syncTemplatesToCloud(currentLocal);
+                }
+            }, (error) => {
+                console.error("Templates listen failed:", error);
+            });
 
             unsubMessages = onSnapshot(messagesRef, (snapshot) => {
                 allMessages = [];
@@ -2214,6 +2364,9 @@
             }
             if (!e.target.closest('#recipient-picker-wrapper')) {
                 window.closeContactsDropdown();
+            }
+            if (!e.target.closest('#edit-campaign-recipients-wrap')) {
+                window.closeEditContactsDropdown();
             }
         });
 
@@ -3107,14 +3260,13 @@
                 return '';
             }
 
-            // Ya pasó su hora programada
             if (remHours <= 0) {
                 return '<span class="bg-red-100 text-red-700 border border-red-200 text-[9px] md:text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shrink-0"><i class="ph-fill ph-warning-circle"></i> Hora pasada (Sin rec.)</span>';
             }
 
             var stepMs = remHours * 3600 * 1000;
             var elapsedMs = nowTs - scheduledTs;
-            var passedSteps = Math.floor(elapsedMs / stepMs); // 0 = pasó la hora principal, esperando 1er recordatorio; 1 = ya pasó 1er rec., etc.
+            var passedSteps = Math.floor(elapsedMs / stepMs);
             var nextStep = passedSteps + 1;
 
             if (nextStep > 12) {
@@ -3377,7 +3529,6 @@
             }
         };
 
-        // Lista desplegable personalizada de contactos (evita el selector nativo oculto en el teclado de iOS)
         window.renderCustomContactsDropdown = function(filterText) {
             const dropdown = document.getElementById('custom-contacts-dropdown');
             if (!dropdown) return;
@@ -3538,21 +3689,282 @@
             document.body.removeChild(textArea);
         }
 
+        // --- EDICIÓN COMPLETA DE CAMPAÑA (Fix 2) ---
+        let editSelectedRecipients = [];
+        let editWeeklyDays = new Set();
+        let editMonthlyDays = new Set();
+        let editYearlyCount = 1;
+
+        function renderEditSelectedRecipients() {
+            const container = document.getElementById('edit-selected-recipients-container');
+            if (!container) return;
+            container.innerHTML = editSelectedRecipients.map((rec, idx) => `
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-800 border border-purple-200 shadow-sm">
+                    <i class="ph-fill ph-user-circle text-purple-600 text-sm"></i>
+                    <span>${rec.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</span>
+                    <button type="button" onclick="removeEditRecipient(${idx})" class="text-purple-500 hover:text-red-500 ml-1" title="Quitar">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </span>
+            `).join('');
+        }
+
+        window.removeEditRecipient = (idx) => {
+            editSelectedRecipients.splice(idx, 1);
+            renderEditSelectedRecipients();
+        };
+
+        window.addEditRecipientToList = () => {
+            const input = document.getElementById('edit-recipient-input');
+            const val = input ? input.value.trim() : '';
+            if (!val) return;
+            if (!editSelectedRecipients.includes(val)) {
+                editSelectedRecipients.push(val);
+                renderEditSelectedRecipients();
+            } else {
+                showToast("Este destinatario ya está en la campaña", "info");
+            }
+            if (input) input.value = '';
+            window.closeEditContactsDropdown();
+        };
+
+        window.renderEditContactsDropdown = (filterText) => {
+            const dropdown = document.getElementById('edit-custom-contacts-dropdown');
+            if (!dropdown) return;
+            const query = (filterText || '').toLowerCase().trim();
+            const sorted = [...allContacts].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            const matches = query
+                ? sorted.filter(c => (c.name || '').toLowerCase().includes(query) || (c.phone || '').toLowerCase().includes(query))
+                : sorted;
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = `<div class="px-3.5 py-2.5 text-xs text-gray-400 text-center">Sin coincidencias — pulsa Agregar</div>`;
+                return;
+            }
+            dropdown.innerHTML = matches.slice(0, 50).map(c => {
+                const fullVal = `${c.name}  |  ${c.phone}`;
+                const initial = (c.name || '?').charAt(0).toUpperCase();
+                return `
+                    <button type="button" onclick="selectEditContactFromDropdown('${encodeURIComponent(fullVal)}')" class="w-full px-3 py-2 text-left hover:bg-purple-50 flex items-center justify-between gap-2 transition-colors">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <div class="w-7 h-7 rounded-full bg-purple-50 border border-purple-200 text-purple-700 font-bold text-xs flex items-center justify-center shrink-0">${initial}</div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-semibold text-gray-800 truncate">${(c.name || '').replace(/</g, "&lt;")}</p>
+                                <p class="text-[11px] font-mono text-gray-500 truncate">${(c.phone || '').replace(/</g, "&lt;")}</p>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md shrink-0">+ Agregar</span>
+                    </button>
+                `;
+            }).join('');
+        };
+
+        window.openEditContactsDropdown = () => {
+            const dropdown = document.getElementById('edit-custom-contacts-dropdown');
+            const input = document.getElementById('edit-recipient-input');
+            if (!dropdown) return;
+            window.renderEditContactsDropdown(input ? input.value : '');
+            dropdown.classList.remove('hidden');
+        };
+
+        window.closeEditContactsDropdown = () => {
+            const dropdown = document.getElementById('edit-custom-contacts-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+        };
+
+        window.toggleEditContactsDropdown = () => {
+            const dropdown = document.getElementById('edit-custom-contacts-dropdown');
+            if (!dropdown) return;
+            if (dropdown.classList.contains('hidden')) window.openEditContactsDropdown();
+            else window.closeEditContactsDropdown();
+        };
+
+        window.selectEditContactFromDropdown = (encodedVal) => {
+            const val = decodeURIComponent(encodedVal);
+            if (!editSelectedRecipients.includes(val)) {
+                editSelectedRecipients.push(val);
+                renderEditSelectedRecipients();
+            }
+            const input = document.getElementById('edit-recipient-input');
+            if (input) input.value = '';
+            window.closeEditContactsDropdown();
+        };
+
+        const editRecInput = document.getElementById('edit-recipient-input');
+        if (editRecInput) {
+            editRecInput.addEventListener('focus', () => window.openEditContactsDropdown());
+            editRecInput.addEventListener('input', (e) => window.renderEditContactsDropdown(e.target.value));
+            editRecInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    window.addEditRecipientToList();
+                }
+            });
+        }
+
+        function syncEditWeeklyButtonsUI() {
+            document.querySelectorAll('.edit-weekly-day-btn').forEach(btn => {
+                const d = parseInt(btn.getAttribute('data-eday'), 10);
+                if (editWeeklyDays.has(d)) {
+                    btn.style.backgroundColor = "#86efac";
+                    btn.style.color = "#064e3b";
+                    btn.style.borderColor = "#22c55e";
+                    btn.style.fontWeight = "700";
+                } else {
+                    btn.style.backgroundColor = "#ffffff";
+                    btn.style.color = "#374151";
+                    btn.style.borderColor = "#e5e7eb";
+                    btn.style.fontWeight = "600";
+                }
+            });
+        }
+
+        function buildEditMonthlyGrid() {
+            const grid = document.getElementById('edit-monthly-days-grid');
+            if (!grid) return;
+            let html = '';
+            for (let day = 1; day <= 31; day++) {
+                const active = editMonthlyDays.has(day);
+                const st = active
+                    ? 'background-color:#4ade80;color:#111827;border-color:#16a34a;font-weight:700;'
+                    : 'background-color:#ffffff;color:#374151;border-color:#e5e7eb;font-weight:600;';
+                html += `<button type="button" onclick="toggleEditMonthlyDay(${day})" class="py-2 rounded-xl text-xs border shadow-sm transition-all" style="${st}">${day}</button>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function syncEditYearlyUI() {
+            const disp = document.getElementById('edit-yearly-count-display');
+            const minus = document.getElementById('btn-edit-yearly-minus');
+            const hint = document.getElementById('edit-yearly-years-hint');
+            if (disp) disp.textContent = String(editYearlyCount);
+            if (minus) minus.disabled = editYearlyCount <= 1;
+            if (hint) hint.textContent = editYearlyCount === 1 ? '1 envío anual (1 año)' : `${editYearlyCount} envíos anuales (${editYearlyCount} años)`;
+        }
+
+        window.toggleEditWeeklyDay = (d) => {
+            if (editWeeklyDays.has(d)) editWeeklyDays.delete(d);
+            else editWeeklyDays.add(d);
+            syncEditWeeklyButtonsUI();
+        };
+        window.toggleAllEditWeeklyDays = () => {
+            if (editWeeklyDays.size === 7) editWeeklyDays.clear();
+            else editWeeklyDays = new Set([0, 1, 2, 3, 4, 5, 6]);
+            syncEditWeeklyButtonsUI();
+        };
+        window.toggleEditMonthlyDay = (day) => {
+            if (editMonthlyDays.has(day)) editMonthlyDays.delete(day);
+            else editMonthlyDays.add(day);
+            buildEditMonthlyGrid();
+        };
+        window.clearEditMonthlyDays = () => {
+            editMonthlyDays.clear();
+            buildEditMonthlyGrid();
+        };
+        window.changeEditYearlyCount = (delta) => {
+            editYearlyCount = Math.max(1, Math.min(50, editYearlyCount + delta));
+            syncEditYearlyUI();
+        };
+
+        window.handleEditFrequencyChange = () => {
+            const isRec = document.getElementById('edit-msg-recurring')?.checked;
+            const freqEl = document.getElementById('edit-msg-frequency');
+            const weeklyPanel = document.getElementById('edit-weekly-days-panel');
+            const monthlyPanel = document.getElementById('edit-monthly-days-panel');
+            const yearlyPanel = document.getElementById('edit-yearly-years-panel');
+            const endContainer = document.getElementById('edit-end-date-container');
+            if (!freqEl) return;
+
+            const freq = freqEl.value;
+            const startVal = document.getElementById('edit-msg-date')?.value;
+            const startObj = startVal ? new Date(startVal + 'T12:00:00') : new Date();
+
+            if (weeklyPanel) weeklyPanel.classList.toggle('hidden', !isRec || freq !== 'weekly');
+            if (monthlyPanel) monthlyPanel.classList.toggle('hidden', !isRec || freq !== 'monthly');
+            if (yearlyPanel) yearlyPanel.classList.toggle('hidden', !isRec || freq !== 'yearly');
+            if (endContainer) endContainer.classList.toggle('hidden', !isRec || freq === 'yearly');
+
+            if (isRec && freq === 'weekly') {
+                if (editWeeklyDays.size === 0) editWeeklyDays.add(startObj.getDay());
+                syncEditWeeklyButtonsUI();
+            } else if (isRec && freq === 'monthly') {
+                if (editMonthlyDays.size === 0) editMonthlyDays.add(startObj.getDate());
+                buildEditMonthlyGrid();
+            } else if (isRec && freq === 'yearly') {
+                syncEditYearlyUI();
+            }
+        };
+
         window.openEditModal = (id, campaignName = null) => {
             const msg = allMessages.find(m => m.id === id);
             if(!msg) return;
             currentEditCampaignName = campaignName;
             document.getElementById('edit-msg-id').value = id;
             document.getElementById('edit-msg-name').value = msg.name || '';
-            document.getElementById('edit-msg-recipient').value = msg.recipient || '';
-            document.getElementById('edit-msg-date').value = msg.date || '';
-            document.getElementById('edit-msg-time').value = msg.time || '';
             document.getElementById('edit-msg-text').value = msg.text || '';
+
+            const isCampaignEdit = !!campaignName;
+            document.getElementById('edit-modal-title').textContent = isCampaignEdit ? 'Editar Campaña Completa' : 'Editar Mensaje';
+            document.getElementById('edit-modal-subtitle').classList.toggle('hidden', !isCampaignEdit);
+            document.getElementById('edit-single-recipient-wrap').classList.toggle('hidden', isCampaignEdit);
+            document.getElementById('edit-campaign-recipients-wrap').classList.toggle('hidden', !isCampaignEdit);
+            document.getElementById('edit-recurrence-section').classList.toggle('hidden', !isCampaignEdit);
+            document.getElementById('edit-date-label').textContent = isCampaignEdit ? 'Fecha de Inicio' : 'Fecha';
+
+            if (isCampaignEdit) {
+                const campMsgs = allMessages.filter(m => m.name === campaignName).sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`) - new Date(`${b.date}T${b.time || '00:00'}`));
+                const recSet = new Set();
+                campMsgs.forEach(m => { if (m.recipient) recSet.add(m.recipient); });
+                editSelectedRecipients = Array.from(recSet);
+                renderEditSelectedRecipients();
+
+                const firstMsg = campMsgs[0] || msg;
+                const lastMsg = campMsgs[campMsgs.length - 1] || msg;
+                document.getElementById('edit-msg-date').value = firstMsg.date || msg.date || '';
+                document.getElementById('edit-msg-time').value = firstMsg.time || msg.time || '08:00';
+
+                const isRec = !!firstMsg.isRecurring;
+                const freq = firstMsg.frequency || 'monthly';
+                const recChk = document.getElementById('edit-msg-recurring');
+                const freqSel = document.getElementById('edit-msg-frequency');
+                const recOpts = document.getElementById('edit-recurrence-options');
+                const endInp = document.getElementById('edit-msg-end-date');
+
+                if (recChk) recChk.checked = isRec;
+                if (freqSel) freqSel.value = freq;
+                if (recOpts) recOpts.classList.toggle('hidden', !isRec);
+                if (endInp) endInp.value = firstMsg.endDate || lastMsg.date || '';
+
+                editWeeklyDays = new Set();
+                editMonthlyDays = new Set();
+                editYearlyCount = 1;
+
+                if (freq === 'weekly') {
+                    campMsgs.forEach(m => {
+                        if (m.date) editWeeklyDays.add(new Date(m.date + 'T12:00:00').getDay());
+                    });
+                } else if (freq === 'monthly') {
+                    campMsgs.forEach(m => {
+                        if (m.date) editMonthlyDays.add(new Date(m.date + 'T12:00:00').getDate());
+                    });
+                } else if (freq === 'yearly') {
+                    const uniqueYears = new Set(campMsgs.map(m => (m.date || '').split('-')[0]).filter(Boolean));
+                    editYearlyCount = Math.max(1, uniqueYears.size);
+                }
+
+                window.handleEditFrequencyChange();
+            } else {
+                document.getElementById('edit-msg-recipient').value = msg.recipient || '';
+                document.getElementById('edit-msg-date').value = msg.date || '';
+                document.getElementById('edit-msg-time').value = msg.time || '08:00';
+            }
+
             document.getElementById('edit-modal').classList.replace('hidden', 'flex');
         };
 
         window.closeEditModal = () => {
             currentEditCampaignName = null;
+            window.closeEditContactsDropdown();
             document.getElementById('edit-modal').classList.replace('flex', 'hidden');
         };
 
@@ -3562,30 +3974,152 @@
                 if (!currentUserId) return;
                 const id = document.getElementById('edit-msg-id').value;
                 const name = document.getElementById('edit-msg-name').value.trim();
-                const recipient = document.getElementById('edit-msg-recipient').value.trim();
                 const date = document.getElementById('edit-msg-date').value;
                 const time = document.getElementById('edit-msg-time').value;
                 const text = document.getElementById('edit-msg-text').value.trim();
 
-                if(!name || !recipient || !date || !time || !text) {
-                    showToast("Todos los campos son requeridos", "error");
+                if(!name || !date || !time || !text) {
+                    showToast("Nombre, fecha, hora y mensaje son requeridos", "error");
                     return;
                 }
-                
+
                 const originalBtnContent = editSaveBtn.innerHTML;
                 editSaveBtn.innerHTML = '<i class="ph ph-spinner animate-spin text-lg"></i> Guardando...';
                 editSaveBtn.disabled = true;
-                
+
                 try {
                     if (currentEditCampaignName) {
-                        const pendingToUpdate = allMessages.filter(m => m.name === currentEditCampaignName && m.status === 'pending');
-                        const promises = pendingToUpdate.map(msg => {
-                            const docRef = doc(db, 'artifacts', appId, 'users', currentUserId, 'messages', msg.id);
-                            return updateDoc(docRef, { name, recipient, date: msg.date, time, text, actionAt: serverTimestamp() });
+                        const pendingRecInput = document.getElementById('edit-recipient-input')?.value.trim();
+                        if (pendingRecInput && !editSelectedRecipients.includes(pendingRecInput)) {
+                            editSelectedRecipients.push(pendingRecInput);
+                        }
+                        if (editSelectedRecipients.length === 0) {
+                            showToast("Agrega al menos un destinatario", "error");
+                            editSaveBtn.innerHTML = originalBtnContent;
+                            editSaveBtn.disabled = false;
+                            return;
+                        }
+
+                        const isRec = !!document.getElementById('edit-msg-recurring')?.checked;
+                        const freq = document.getElementById('edit-msg-frequency')?.value || 'daily';
+                        const endDateVal = document.getElementById('edit-msg-end-date')?.value || '';
+
+                        if (isRec && freq !== 'yearly' && !endDateVal) {
+                            showToast("Selecciona una fecha de finalización", "error");
+                            editSaveBtn.innerHTML = originalBtnContent;
+                            editSaveBtn.disabled = false;
+                            return;
+                        }
+
+                        const toYMD = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+                        const dates = [];
+                        let resolvedEndDate = isRec ? endDateVal : null;
+                        const startDateObj = new Date(date + 'T12:00:00');
+
+                        if (isRec && freq === 'yearly') {
+                            const targetMonth = startDateObj.getMonth();
+                            const targetDay = startDateObj.getDate();
+                            const startYear = startDateObj.getFullYear();
+                            for (let offset = 0; offset < Math.max(1, editYearlyCount); offset++) {
+                                const year = startYear + offset;
+                                const lastDay = new Date(year, targetMonth + 1, 0).getDate();
+                                dates.push(toYMD(new Date(year, targetMonth, Math.min(targetDay, lastDay), 12, 0, 0)));
+                            }
+                            resolvedEndDate = dates[dates.length - 1] || date;
+                        } else if (isRec && endDateVal) {
+                            const endDateObj = new Date(endDateVal + 'T23:59:59');
+                            if (freq === 'daily') {
+                                let c = new Date(startDateObj);
+                                let guard = 3650;
+                                while (c <= endDateObj && guard > 0) {
+                                    dates.push(toYMD(c));
+                                    c.setDate(c.getDate() + 1);
+                                    guard--;
+                                }
+                            } else if (freq === 'weekly') {
+                                const activeDays = editWeeklyDays.size > 0 ? editWeeklyDays : new Set([startDateObj.getDay()]);
+                                let c = new Date(startDateObj);
+                                let guard = 3650;
+                                while (c <= endDateObj && guard > 0) {
+                                    if (activeDays.has(c.getDay())) dates.push(toYMD(c));
+                                    c.setDate(c.getDate() + 1);
+                                    guard--;
+                                }
+                            } else if (freq === 'monthly') {
+                                const activeMonthDays = editMonthlyDays.size > 0
+                                    ? Array.from(editMonthlyDays).sort((a, b) => a - b)
+                                    : [startDateObj.getDate()];
+                                let year = startDateObj.getFullYear();
+                                let month = startDateObj.getMonth();
+                                const endYear = endDateObj.getFullYear();
+                                const endMonth = endDateObj.getMonth();
+                                let guard = 240;
+                                while ((year < endYear || (year === endYear && month <= endMonth)) && guard > 0) {
+                                    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+                                    const resolvedSet = new Set();
+                                    activeMonthDays.forEach(tDay => resolvedSet.add(Math.min(tDay, lastDayOfMonth)));
+                                    Array.from(resolvedSet).sort((a, b) => a - b).forEach(dNum => {
+                                        const cand = new Date(year, month, dNum, 12, 0, 0);
+                                        if (cand >= startDateObj && cand <= endDateObj) dates.push(toYMD(cand));
+                                    });
+                                    month++;
+                                    if (month > 11) { month = 0; year++; }
+                                    guard--;
+                                }
+                            }
+                            if (dates.length === 0) {
+                                showToast("No hay fechas válidas en el rango seleccionado", "error");
+                                editSaveBtn.innerHTML = originalBtnContent;
+                                editSaveBtn.disabled = false;
+                                return;
+                            }
+                        } else {
+                            dates.push(date);
+                        }
+
+                        const messagesRef = collection(db, 'artifacts', appId, 'users', currentUserId, 'messages');
+                        const oldPending = allMessages.filter(m => m.name === currentEditCampaignName && m.status === 'pending');
+
+                        const delBatch = writeBatch(db);
+                        oldPending.forEach(m => {
+                            delBatch.delete(doc(db, 'artifacts', appId, 'users', currentUserId, 'messages', m.id));
                         });
-                        await Promise.all(promises);
-                        showToast(`Se actualizaron ${pendingToUpdate.length} mensajes programados`);
+                        await delBatch.commit();
+
+                        const newPayloads = [];
+                        editSelectedRecipients.forEach(rec => {
+                            const personalizedText = window.personalizeMessageText ? window.personalizeMessageText(text, rec) : text;
+                            dates.forEach(d => {
+                                newPayloads.push({
+                                    name,
+                                    recipient: rec,
+                                    date: d,
+                                    time,
+                                    text: personalizedText,
+                                    isRecurring: isRec,
+                                    frequency: isRec ? freq : null,
+                                    endDate: resolvedEndDate,
+                                    status: 'pending',
+                                    createdAt: serverTimestamp()
+                                });
+                            });
+                        });
+
+                        for (let i = 0; i < newPayloads.length; i += 500) {
+                            const batch = writeBatch(db);
+                            newPayloads.slice(i, i + 500).forEach(p => batch.set(doc(messagesRef), p));
+                            await batch.commit();
+                        }
+
+                        showToast(`Campaña actualizada: ${newPayloads.length} mensajes programados`);
                     } else {
+                        const recipient = document.getElementById('edit-msg-recipient').value.trim();
+                        if (!recipient) {
+                            showToast("El destinatario es requerido", "error");
+                            editSaveBtn.innerHTML = originalBtnContent;
+                            editSaveBtn.disabled = false;
+                            return;
+                        }
                         const docRef = doc(db, 'artifacts', appId, 'users', currentUserId, 'messages', id);
                         await updateDoc(docRef, {
                             name, recipient, date, time, text,
@@ -3604,7 +4138,6 @@
             });
         }
 
-        // Puente para marcar como Listo o Posponer 1 día desde el banner de notificación de iOS
         window._nativeDoneQueue = JSON.parse(localStorage.getItem('wascheduler_native_done_queue') || '[]');
         window._nativePostponeQueue = JSON.parse(localStorage.getItem('wascheduler_native_postpone_queue') || '[]');
 
@@ -3653,7 +4186,7 @@
             const today = new Date();
             const localTodayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
             document.getElementById('msg-date').value = localTodayStr;
-            document.getElementById('msg-time').value = msg.time || '09:00';
+            document.getElementById('msg-time').value = msg.time || '08:00';
             if (window.triggerNativeHaptic) window.triggerNativeHaptic('light');
             showToast('Datos cargados. Ajusta fecha/hora y guarda.', 'info');
         };
@@ -3865,19 +4398,18 @@
             });
         }
 
-        
-        // --- SELECTOR VISUAL DE DÍAS SEMANALES Y MENSUALES ---
         let selectedWeeklyDays = new Set();
         let selectedMonthlyDays = new Set();
+        let selectedYearlyCount = 1;
 
         function syncWeeklyButtonsUI() {
             document.querySelectorAll('.weekly-day-btn').forEach(btn => {
                 const d = parseInt(btn.getAttribute('data-day'), 10);
                 if (selectedWeeklyDays.has(d)) {
                     btn.className = "weekly-day-btn py-2 rounded-xl text-xs font-bold bg-green-400 text-gray-900 border-2 border-green-600 shadow-sm transition-all";
-                    btn.style.backgroundColor = "#4ade80";
-                    btn.style.color = "#111827";
-                    btn.style.borderColor = "#16a34a";
+                    btn.style.backgroundColor = "#86efac";
+                    btn.style.color = "#064e3b";
+                    btn.style.borderColor = "#22c55e";
                 } else {
                     btn.className = "weekly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm hover:bg-gray-50 transition-all";
                     btn.style.backgroundColor = "#ffffff";
@@ -3897,46 +4429,12 @@
                     ? "monthly-day-btn py-2 rounded-xl text-xs font-bold bg-green-400 text-gray-900 border-2 border-green-600 shadow-sm transition-all"
                     : "monthly-day-btn py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 shadow-sm hover:bg-gray-50 transition-all";
                 const inlineStyle = isSelected
-                    ? 'style="background-color:#4ade80;color:#111827;border-color:#16a34a;"'
+                    ? 'style="background-color:#86efac;color:#064e3b;border-color:#22c55e;"'
                     : 'style="background-color:#ffffff;color:#374151;border-color:#e5e7eb;"';
                 btns += `<button type="button" data-mday="${day}" onclick="toggleMonthlyDay(${day})" class="${cls}" ${inlineStyle}>${day}</button>`;
             }
             grid.innerHTML = btns;
         }
-
-        window.toggleWeeklyDay = (dayIndex) => {
-            if (selectedWeeklyDays.has(dayIndex)) {
-                selectedWeeklyDays.delete(dayIndex);
-            } else {
-                selectedWeeklyDays.add(dayIndex);
-            }
-            syncWeeklyButtonsUI();
-        };
-
-        window.toggleAllWeeklyDays = () => {
-            if (selectedWeeklyDays.size === 7) {
-                selectedWeeklyDays.clear();
-            } else {
-                selectedWeeklyDays = new Set([0, 1, 2, 3, 4, 5, 6]);
-            }
-            syncWeeklyButtonsUI();
-        };
-
-        window.toggleMonthlyDay = (dayNum) => {
-            if (selectedMonthlyDays.has(dayNum)) {
-                selectedMonthlyDays.delete(dayNum);
-            } else {
-                selectedMonthlyDays.add(dayNum);
-            }
-            buildMonthlyCalendarGrid();
-        };
-
-        window.clearMonthlyDays = () => {
-            selectedMonthlyDays.clear();
-            buildMonthlyCalendarGrid();
-        };
-
-        let selectedYearlyCount = 1;
 
         function syncYearlyCounterUI() {
             const disp = document.getElementById('yearly-count-display');
@@ -3951,6 +4449,29 @@
             }
         }
 
+        window.toggleWeeklyDay = (dayIndex) => {
+            if (selectedWeeklyDays.has(dayIndex)) selectedWeeklyDays.delete(dayIndex);
+            else selectedWeeklyDays.add(dayIndex);
+            syncWeeklyButtonsUI();
+        };
+
+        window.toggleAllWeeklyDays = () => {
+            if (selectedWeeklyDays.size === 7) selectedWeeklyDays.clear();
+            else selectedWeeklyDays = new Set([0, 1, 2, 3, 4, 5, 6]);
+            syncWeeklyButtonsUI();
+        };
+
+        window.toggleMonthlyDay = (dayNum) => {
+            if (selectedMonthlyDays.has(dayNum)) selectedMonthlyDays.delete(dayNum);
+            else selectedMonthlyDays.add(dayNum);
+            buildMonthlyCalendarGrid();
+        };
+
+        window.clearMonthlyDays = () => {
+            selectedMonthlyDays.clear();
+            buildMonthlyCalendarGrid();
+        };
+
         window.changeYearlyCount = (delta) => {
             selectedYearlyCount = Math.max(1, Math.min(50, selectedYearlyCount + delta));
             syncYearlyCounterUI();
@@ -3961,11 +4482,8 @@
             const freq = document.getElementById('msg-frequency')?.value;
             const endInput = document.getElementById('msg-end-date');
             if (!endInput) return;
-            if (isRec && freq !== 'yearly') {
-                endInput.setAttribute('required', 'true');
-            } else {
-                endInput.removeAttribute('required');
-            }
+            if (isRec && freq !== 'yearly') endInput.setAttribute('required', 'true');
+            else endInput.removeAttribute('required');
         };
 
         window.handleFrequencyChange = () => {
@@ -3987,14 +4505,10 @@
             if (window.syncRecurrenceEndRequirement) window.syncRecurrenceEndRequirement();
 
             if (freq === 'weekly') {
-                if (selectedWeeklyDays.size === 0) {
-                    selectedWeeklyDays.add(startObj.getDay());
-                }
+                if (selectedWeeklyDays.size === 0) selectedWeeklyDays.add(startObj.getDay());
                 syncWeeklyButtonsUI();
             } else if (freq === 'monthly') {
-                if (selectedMonthlyDays.size === 0) {
-                    selectedMonthlyDays.add(startObj.getDate());
-                }
+                if (selectedMonthlyDays.size === 0) selectedMonthlyDays.add(startObj.getDate());
                 buildMonthlyCalendarGrid();
             } else if (freq === 'yearly') {
                 syncYearlyCounterUI();
@@ -4100,9 +4614,7 @@
                         let c = new Date(startDateObj);
                         let guard = 3650;
                         while (c <= endDateObj && guard > 0) {
-                            if (activeDays.has(c.getDay())) {
-                                dates.push(toYMD(c));
-                            }
+                            if (activeDays.has(c.getDay())) dates.push(toYMD(c));
                             c.setDate(c.getDate() + 1);
                             guard--;
                         }
@@ -4132,10 +4644,7 @@
                             });
 
                             month++;
-                            if (month > 11) {
-                                month = 0;
-                                year++;
-                            }
+                            if (month > 11) { month = 0; year++; }
                             guard--;
                         }
                     }
@@ -4184,7 +4693,8 @@
                 form.reset();
                 selectedRecipients = [];
                 renderSelectedRecipients();
-                document.getElementById('recurrence-options').classList.add('hidden'); if (window.resetRecurrenceSelections) window.resetRecurrenceSelections();
+                document.getElementById('recurrence-options').classList.add('hidden');
+                if (window.resetRecurrenceSelections) window.resetRecurrenceSelections();
                 document.getElementById('msg-end-date').removeAttribute('required');
                 const nowReset = new Date();
                 document.getElementById('msg-date').value = new Date(nowReset.getTime() - (nowReset.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
@@ -4206,8 +4716,8 @@
             const today = new Date();
             const localTodayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
             document.getElementById('msg-date').value = localTodayStr;
-            
             document.getElementById('msg-time').value = '08:00';
+
             setInterval(() => {
                 if (!document.getElementById('view-pending').classList.contains('hidden')) {
                     renderUI();
