@@ -5,36 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>WhatsApp Scheduler Pro</title>
 
-    <script>
-        // Purga automática de Service Workers y cachés antiguas en Safari iOS
-        (function() {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                    if (registrations && registrations.length > 0) {
-                        Promise.all(registrations.map(function(reg) {
-                            return reg.unregister();
-                        })).then(function() {
-                            if ('caches' in window) {
-                                caches.keys().then(function(names) {
-                                    Promise.all(names.map(function(n) { return caches.delete(n); })).then(function() {
-                                        if (!sessionStorage.getItem('sw_purged_once')) {
-                                            sessionStorage.setItem('sw_purged_once', '1');
-                                            window.location.reload();
-                                        }
-                                    });
-                                });
-                            }
-                        });
-                    }
-                });
-            }
-            if ('caches' in window) {
-                caches.keys().then(function(names) {
-                    names.forEach(function(n) { caches.delete(n); });
-                });
-            }
-        })();
-    </script>
+
     <!-- PWA & iOS Native App Meta Tags -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0d9488">
@@ -207,6 +178,27 @@
             box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2) !important;
             outline: none !important;
         }
+        /* Respaldo offline para íconos principales cuando no hay red para cargar Phosphor CDN */
+        .ph-plus::before, .ph-plus-bold::before { content: "+"; font-style: normal; font-weight: 700; }
+        .ph-gear::before { content: "⚙"; font-style: normal; }
+        .ph-bell-ringing::before { content: "🔔"; font-style: normal; }
+        .ph-sign-out::before { content: "↪"; font-style: normal; }
+        .ph-calendar-blank::before { content: "📅"; font-style: normal; }
+        .ph-presentation-chart::before { content: "📊"; font-style: normal; }
+        .ph-clock-counter-clockwise::before { content: "🕒"; font-style: normal; }
+        .ph-users::before { content: "👥"; font-style: normal; }
+        .ph-magnifying-glass::before { content: "🔍"; font-style: normal; }
+        .ph-whatsapp-logo::before { content: "💬"; font-style: normal; }
+        .ph-check::before, .ph-check-bold::before { content: "✓"; font-style: normal; }
+        .ph-x::before, .ph-x-bold::before { content: "✕"; font-style: normal; }
+        .ph-trash::before { content: "🗑"; font-style: normal; }
+        .ph-pencil-simple::before { content: "✎"; font-style: normal; }
+        .ph-calendar-plus::before { content: "📆"; font-style: normal; }
+        .ph-prohibit::before { content: "⊘"; font-style: normal; }
+        .ph-copy::before { content: "📋"; font-style: normal; }
+        .ph-caret-down::before { content: "▾"; font-style: normal; }
+        .ph-caret-up::before { content: "▴"; font-style: normal; }
+        .ph-dots-three-vertical::before { content: "⋮"; font-style: normal; font-weight: 700; }
     </style>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
@@ -1675,10 +1667,37 @@
         let messageToPostpone = null;
         let currentEditCampaignName = null;
         let hasRenderedFromCache = false;
+        let nativeNetworkOnline = navigator.onLine;
+        let lastSyncState = navigator.onLine ? 'syncing' : 'offline';
+        let currentActiveView = 'pending';
+        let dirtyViews = { pending: true, campaigns: true, history: true, contacts: true };
         
         let isImportingContacts = false;
         let campaignMode = 'grouped';
         let isSimulatedMobile = window.innerWidth < 768;
+
+        function isDeviceOnline() {
+            return Boolean(navigator.onLine && nativeNetworkOnline);
+        }
+
+        window.onNativeNetworkChange = function(connected) {
+            nativeNetworkOnline = Boolean(connected);
+            if (!nativeNetworkOnline) {
+                setSyncStatus('offline');
+            } else if (lastSyncState === 'offline') {
+                setSyncStatus('syncing');
+            }
+        };
+
+        window.addEventListener('online', () => {
+            nativeNetworkOnline = true;
+            setSyncStatus('syncing');
+        });
+
+        window.addEventListener('offline', () => {
+            nativeNetworkOnline = false;
+            setSyncStatus('offline');
+        });
 
         let loadingInterval = null;
         let currentProgress = 1;
@@ -1706,11 +1725,10 @@
                     hasRenderedFromCache = true;
 
                     if (userEmailDisplay && cachedEmail) userEmailDisplay.textContent = cachedEmail;
-                    userStatusText.textContent = "Sincronizando...";
-                    setSyncStatus('syncing');
+                    setSyncStatus(isDeviceOnline() ? 'syncing' : 'offline');
 
-                    renderUI();
-                    renderContacts();
+                    dirtyViews = { pending: true, campaigns: true, history: true, contacts: true };
+                    renderActiveViewOnly();
                     return true;
                 }
             } catch (e) {
@@ -1739,19 +1757,45 @@
         }
 
         function setSyncStatus(state) {
+            const effectiveState = !isDeviceOnline() ? 'offline' : state;
+            lastSyncState = effectiveState;
             if (!syncBadgeMobile) return;
-            if (state === 'online') {
+            if (effectiveState === 'online') {
                 syncBadgeMobile.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-green-50 text-green-700 border border-green-200";
                 syncBadgeMobile.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> En línea`;
-                userStatusText.textContent = "Conectado";
-            } else if (state === 'syncing') {
+                if (userStatusText) userStatusText.textContent = "Conectado";
+            } else if (effectiveState === 'syncing') {
                 syncBadgeMobile.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-200";
                 syncBadgeMobile.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Sincronizando`;
-                userStatusText.textContent = "Sincronizando...";
+                if (userStatusText) userStatusText.textContent = "Sincronizando...";
             } else {
                 syncBadgeMobile.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-gray-100 text-gray-600 border border-gray-200";
                 syncBadgeMobile.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Offline`;
-                userStatusText.textContent = "Modo Offline";
+                if (userStatusText) userStatusText.textContent = "Modo Offline";
+            }
+        }
+
+        function renderActiveViewOnly() {
+            if (currentActiveView === 'pending') {
+                if (dirtyViews.pending) {
+                    renderUI();
+                    dirtyViews.pending = false;
+                }
+            } else if (currentActiveView === 'campaigns') {
+                if (dirtyViews.campaigns) {
+                    renderCampaigns();
+                    dirtyViews.campaigns = false;
+                }
+            } else if (currentActiveView === 'history') {
+                if (dirtyViews.history) {
+                    renderHistory();
+                    dirtyViews.history = false;
+                }
+            } else if (currentActiveView === 'contacts') {
+                if (dirtyViews.contacts) {
+                    renderContacts();
+                    dirtyViews.contacts = false;
+                }
             }
         }
 
@@ -1800,7 +1844,7 @@
 
         function checkInitialDataComplete() {
             if (initialMessagesLoaded && initialContactsLoaded) {
-                setSyncStatus('online');
+                if (!isDeviceOnline()) setSyncStatus('offline');
                 saveToLocalCache();
                 if (loadingInterval) {
                     clearInterval(loadingInterval);
@@ -2020,6 +2064,7 @@
         };
 
         window.switchView = (view) => {
+            currentActiveView = view;
             const views = ['new', 'pending', 'history', 'contacts', 'campaigns'];
             
             views.forEach(v => {
@@ -2070,18 +2115,19 @@
             } else if (view === 'pending') {
                 pTitle.textContent = "Mensajes Pendientes";
                 pDesc.textContent = "Gestiona tus envíos manuales programados.";
+                requestAnimationFrame(() => renderActiveViewOnly());
             } else if (view === 'history') {
                 pTitle.textContent = "Historial de Envíos";
                 pDesc.textContent = "Revisa los mensajes enviados, omitidos o pospuestos.";
-                renderHistory();
+                requestAnimationFrame(() => renderActiveViewOnly());
             } else if (view === 'campaigns') {
                 pTitle.textContent = "Resumen";
                 pDesc.textContent = "Gestiona y haz seguimiento a tus mensajes programados de WhatsApp.";
-                renderCampaigns();
+                requestAnimationFrame(() => renderActiveViewOnly());
             } else {
                 pTitle.textContent = "Libreta de Contactos";
                 pDesc.textContent = "Administra tus contactos e impórtalos desde Google.";
-                renderContacts();
+                requestAnimationFrame(() => renderActiveViewOnly());
             }
         };
 
@@ -2299,14 +2345,32 @@
                 console.error("Templates listen failed:", error);
             });
 
-            unsubMessages = onSnapshot(messagesRef, (snapshot) => {
-                allMessages = [];
-                snapshot.forEach(doc => {
-                    allMessages.push({ id: doc.id, ...doc.data() });
-                });
-                renderUI();
-                if (window.syncNativeNotifications) window.syncNativeNotifications(allMessages);
-                saveToLocalCache();
+            unsubMessages = onSnapshot(messagesRef, { includeMetadataChanges: true }, (snapshot) => {
+                const isFromCache = snapshot.metadata && snapshot.metadata.fromCache;
+                if (snapshot.empty && (!isDeviceOnline() || isFromCache) && allMessages.length > 0) {
+                    setSyncStatus(isDeviceOnline() ? 'syncing' : 'offline');
+                } else {
+                    allMessages = [];
+                    snapshot.forEach(doc => {
+                        allMessages.push({ id: doc.id, ...doc.data() });
+                    });
+                    dirtyViews.pending = true;
+                    dirtyViews.campaigns = true;
+                    dirtyViews.history = true;
+                    renderActiveViewOnly();
+                    if (window.syncNativeNotifications) window.syncNativeNotifications(allMessages);
+                    if (!isFromCache || allMessages.length > 0) {
+                        saveToLocalCache();
+                    }
+                }
+
+                if (!isDeviceOnline()) {
+                    setSyncStatus('offline');
+                } else if (!isFromCache) {
+                    setSyncStatus('online');
+                } else {
+                    setSyncStatus('syncing');
+                }
 
                 if (window.flushNativeDoneQueue) window.flushNativeDoneQueue();
                 if (!initialMessagesLoaded) {
@@ -2323,13 +2387,21 @@
                 checkInitialDataComplete();
             });
 
-            unsubContacts = onSnapshot(contactsRef, (snapshot) => {
-                allContacts = [];
-                snapshot.forEach(doc => {
-                    allContacts.push({ id: doc.id, ...doc.data() });
-                });
-                renderContacts();
-                saveToLocalCache();
+            unsubContacts = onSnapshot(contactsRef, { includeMetadataChanges: true }, (snapshot) => {
+                const isFromCache = snapshot.metadata && snapshot.metadata.fromCache;
+                if (snapshot.empty && (!isDeviceOnline() || isFromCache) && allContacts.length > 0) {
+                    // Mantener contactos en caché local si estamos sin red
+                } else {
+                    allContacts = [];
+                    snapshot.forEach(doc => {
+                        allContacts.push({ id: doc.id, ...doc.data() });
+                    });
+                    dirtyViews.contacts = true;
+                    renderActiveViewOnly();
+                    if (!isFromCache || allContacts.length > 0) {
+                        saveToLocalCache();
+                    }
+                }
 
                 if (!initialContactsLoaded) {
                     initialContactsLoaded = true;

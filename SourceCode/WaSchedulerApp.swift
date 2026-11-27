@@ -2,6 +2,7 @@ import SwiftUI
 import WebKit
 import UserNotifications
 import UIKit
+import Network
 
 class WebViewBridge {
     static let shared = WebViewBridge()
@@ -242,8 +243,10 @@ struct ContentView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
         config.preferences.javaScriptEnabled = true
+        config.defaultWebpagePreferences.allowsContentJavaScript = true
         
         config.userContentController.add(context.coordinator, name: "openExternal")
         config.userContentController.add(context.coordinator, name: "syncAllNotifications")
@@ -270,6 +273,36 @@ struct ContentView: UIViewRepresentable {
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+        private let pathMonitor = NWPathMonitor()
+        private let monitorQueue = DispatchQueue(label: "com.hugoangarita.wascheduler.netmonitor")
+        private var lastIsConnected: Bool = true
+
+        override init() {
+            super.init()
+            pathMonitor.pathUpdateHandler = { [weak self] path in
+                let connected = (path.status == .satisfied)
+                self?.lastIsConnected = connected
+                DispatchQueue.main.async {
+                    WebViewBridge.shared.webView?.evaluateJavaScript(
+                        "if (window.onNativeNetworkChange) { window.onNativeNetworkChange(\(connected ? "true" : "false")); }",
+                        completionHandler: nil
+                    )
+                }
+            }
+            pathMonitor.start(queue: monitorQueue)
+        }
+
+        deinit {
+            pathMonitor.cancel()
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            let connected = lastIsConnected
+            webView.evaluateJavaScript(
+                "if (window.onNativeNetworkChange) { window.onNativeNetworkChange(\(connected ? "true" : "false")); }",
+                completionHandler: nil
+            )
+        }
         
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "webAppReady" {
